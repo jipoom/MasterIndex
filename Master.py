@@ -1,10 +1,10 @@
-import datetime, time, threading
+import datetime, time, threading, socket
 # lists containing alive process
 # eg. 192.168.1.1:12345
 # CONSTANT
 EXECUTE_TIME_GAP = 5; #seconds
 KEEPALIVE_TIME_GAP = 2; #seconds
-processList = [("127.0.0.1","12345")]
+processList = [("127.0.0.1","9999")]
 aliveList = []
 rankedList = []
 uniquePath = []
@@ -35,6 +35,9 @@ def TriggerProcess(aliveList):
     # rank all processes
     # rankedLists = rankProcess(workingLists);
     # Iterate ranked list and uniquePath to assign tasks
+    triggerProcess = TriggerThread( "127.0.0.1",9990  )
+    triggerProcess.start()
+    triggerProcess.join()
     print "TriggerProcess: "+str(nextExecuteTime)    
 # rankProcess is to rank all processes by performance
 def rankProcess(aliveList): 
@@ -49,6 +52,7 @@ def assignTask(process,cmd):
     # reorder ranked process
     # update workingProcess DB setting state as alive
     # return 
+
     print "assignTask"    
 
 def getHost(process): 
@@ -60,6 +64,27 @@ def getPort(process):
     # separate process (host:port)
     # report port
     print "getPort"   
+
+class TriggerThread (threading.Thread):
+    def __init__(self,host,port):
+        self.process = None
+        threading.Thread.__init__(self)
+        self.host = host
+        self.port = port
+    def run(self):
+        # Connect to the server:
+       
+        server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
+        server.connect ( ( self.host, self.port ) )
+        #infinite loop so that function do not terminate and thread do not end.
+        try:
+            server.send ('work')
+            server.close()       
+        except socket.error:
+            #came out of loop
+            server.close()
+
+
 
 class ReassignTaskThread (threading.Thread):
     def __init__(self, task):
@@ -86,7 +111,7 @@ executeTime = getExecuteTime()
 keepAliveThread = KeepAliveThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
 # Start new Threads
 keepAliveThread.start()
-
+TriggerProcess(aliveList)
 while True:
     uniquePath = [] # read from configuration file node:path
     executeTime = getExecuteTime()
