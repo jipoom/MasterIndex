@@ -28,10 +28,18 @@ class clientThread (threading.Thread):
             # Listening for Keep Alive Status
             try:
                 data = self.conn.recv(1024)
-                if data =="HeartBeat":
-                    print "got HeartBeat from "+ self.addr[0]+":"+str(self.addr[1])
-                elif data == "Done":
-                    print "Job Done by: "+self.addr[0]+":"+str(self.addr[1])
+                if data =="keep-alive:indexing":
+                    print "got keep-alive:indexing from "+ self.addr[0]+":"+str(self.addr[1])
+                elif data =="keep-alive:writing":
+                    print "got keep-alive:writing from "+ self.addr[0]+":"+str(self.addr[1])
+                elif data == "keep-alive:indexing-done":
+                    # update indexer's state to wait_writing on MasterDB 
+                    print "Indexing Done by: "+self.addr[0]+":"+str(self.addr[1])
+                    break
+                elif data == "keep-alive:writing-done":
+                    # Remove indexer state on MasterDB for this task 
+                    # Remove indexer state on StateDB for this task 
+                    print "Writing Done by: "+self.addr[0]+":"+str(self.addr[1])
                     break
                 #if not data: 
                 #    break
