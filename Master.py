@@ -57,7 +57,7 @@ def rankProcess(aliveList):
 # assignTask is to assign tasks to processes
 def sendTask(indexer,cmd): 
     # send cmd to the specified indexer
-    # update workingProcess DB setting state as "indexing"
+    # update MasterDB setting state as "indexing"
     # return 
     print "sendTask"     
     
