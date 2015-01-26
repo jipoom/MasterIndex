@@ -20,11 +20,18 @@ def addTask(state, node, path, lastIndexedRecord, dbNode):
     # is called in case an error is found
     # insert state into MasterDB
     print "addTask"
+
+def generateJob():
+    # generates jobID for tasks
+    # return jobID
+    print "jobID"
      
 def getTask():
     # Get tasks configured by users from MastDB
     # return all tasks in List
     print "getTask"
+
+
     
 # keepAlive is to test if each process is still alive
 def checkIndexerState():
