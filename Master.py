@@ -1,4 +1,4 @@
-import datetime, time, threading, socket, string, random
+import datetime, time, threading, socket, string, random, pymongo
 # lists containing alive process
 # eg. 192.168.1.1:12345
 # CONSTANT
@@ -16,23 +16,31 @@ def getExecuteTime():
     now=datetime.datetime.now()
     return time.mktime(now.timetuple())  
 
-def addTask(jobID, state, node, path, lastIndexedRecord, dbNode):
+def changeState(cmd, jobID, state, node, dbNode):
     # is called in case an error is found
     # insert state into MasterDB
-    print "addTask"
+    print "changeState"
 
 def generateJobID(size=10, chars=string.ascii_uppercase + string.digits+string.ascii_lowercase):
     # generates jobID for tasks
     # return jobID
     print "jobID"
     return ''.join(random.choice(chars) for _ in range(size))
+
+def isOldJob(jobID):
+    # check on MasterDB if this job exists
+    # return boolean
+    print "is old job?"
      
 def getTask():
     # Get tasks configured by users from MastDB
     # return all tasks in List
     print "getTask"
 
-
+def getRecordFromStateDB(jobID):
+    # Get last record from state DB
+    # return string containing jobID:state:last_record:node
+    print "getRecordStateDB"
     
 # keepAlive is to test if each process is still alive
 def checkIndexerState():
@@ -94,11 +102,13 @@ class TriggerThread (threading.Thread):
         # rank all processes
         # rankedLists = rankProcess(workingLists);
         # Iterate ranked list and uniquePath and call sendTask(indexer,cmd)
+        # assign jobID to each node
+        # call changeState add state on MasterDB
         server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
         server.connect ( ( self.host, self.port ) )
         #infinite loop so that function do not terminate and thread do not end.
         try:
-            server.send ('indexing')
+            server.send ('indexing:<jobID>')
             server.close()       
         except socket.error:
             #came out of loop
