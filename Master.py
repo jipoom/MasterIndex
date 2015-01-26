@@ -1,4 +1,4 @@
-import datetime, time, threading, socket
+import datetime, time, threading, socket, string, random
 # lists containing alive process
 # eg. 192.168.1.1:12345
 # CONSTANT
@@ -16,15 +16,16 @@ def getExecuteTime():
     now=datetime.datetime.now()
     return time.mktime(now.timetuple())  
 
-def addTask(state, node, path, lastIndexedRecord, dbNode):
+def addTask(jobID, state, node, path, lastIndexedRecord, dbNode):
     # is called in case an error is found
     # insert state into MasterDB
     print "addTask"
 
-def generateJob():
+def generateJobID(size=10, chars=string.ascii_uppercase + string.digits+string.ascii_lowercase):
     # generates jobID for tasks
     # return jobID
     print "jobID"
+    return ''.join(random.choice(chars) for _ in range(size))
      
 def getTask():
     # Get tasks configured by users from MastDB
