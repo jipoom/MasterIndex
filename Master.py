@@ -1,9 +1,12 @@
 import datetime, time, threading, socket, string, random, pymongo
+from pymongo import MongoClient
 # lists containing alive process
 # eg. 192.168.1.1:12345
 # CONSTANT
 EXECUTE_TIME_GAP = 5; #seconds
 KEEPALIVE_TIME_GAP = 2; #seconds
+MASTER_DB = "192.168.1.38"
+MASTER_DB_PORT = 27017
 processList = [("127.0.0.1","9999")]
 aliveList = []
 rankedList = []
@@ -58,7 +61,7 @@ def checkIndexerState():
     print "checkIndexerState"
  
 # TriggerProcess is to trigger process to work
-def TriggerProcess(aliveList):
+def TriggerProcess():
     triggerProcess = TriggerThread( "127.0.0.1",9990  )
     triggerProcess.start()
     #triggerProcess.join()
@@ -91,6 +94,16 @@ def getPort(process):
     # separate process (host:port)
     # report port
     print "getPort"   
+    
+def getIndexer(): 
+    # get indexers from MasterDB
+    # return list of all indexers
+    mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+    db = mongoClient.logsearch
+    indexerCollection = db.MasterDB_indexer
+    for indexer in indexerCollection.find():
+        print indexer
+    print "getIndexer"   
 
 class TriggerThread (threading.Thread):
     def __init__(self,host,port):
@@ -99,6 +112,7 @@ class TriggerThread (threading.Thread):
         self.host = host
         self.port = port
     def run(self):
+        # Get all indexer
         # rank all processes
         # rankedLists = rankProcess(workingLists);
         # Iterate ranked list and uniquePath and call sendTask(indexer,cmd)
@@ -177,17 +191,17 @@ class CheckStateThread (threading.Thread):
                 aliveList = checkIndexerState()
 
 # Create new threads
+# getIndexer()
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
 # Start new Threads
 checkStateThread.start()
-TriggerProcess(aliveList)
 while True:
     uniquePath = [] # read from configuration file node:path
     executeTime = getExecuteTime()
     if executeTime >= nextExecuteTime:
         nextExecuteTime = executeTime+EXECUTE_TIME_GAP
-        TriggerProcess(aliveList)
+        TriggerProcess()
     
     
     
