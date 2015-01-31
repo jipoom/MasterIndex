@@ -105,6 +105,10 @@ def sendTask(indexer,cmd):
 def checkDBPerformace():
     # check DB workload
     # return T of F
+    mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+    db = mongoClient.logsearch
+    print db.command("collstats", "indexer_state")
+    print db.command("dbstats")
     print "checkDBPerformace"
     
 def getHost(process): 
@@ -232,7 +236,7 @@ class CheckStateThread (threading.Thread):
                 aliveList = checkIndexerState()
 
 # Create new threads    
-#rankProcess(getIndexer())
+#checkDBPerformace()
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
 # Start new Threads
