@@ -105,10 +105,15 @@ def sendTask(indexer,cmd):
 def checkDBPerformace():
     # check DB workload
     # return T of F
-    mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
-    db = mongoClient.logsearch
-    print db.command("collstats", "indexer_state")
-    print db.command("dbstats")
+    #mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+    #db = mongoClient.logsearch
+    #print db.command("collstats", "indexer_state")
+    #print db.command("currentOp")
+    conn = pymongo.connection.Connection(MASTER_DB, 27017)
+    all_ops = conn['admin']['$cmd.sys.inprog'].find_one('inprog')['inprog']
+    active_ops = [op for op in all_ops if op['active']]
+ 
+    print '%d/%d active operations' % (len(active_ops), len(all_ops))
     print "checkDBPerformace"
     
 def getHost(process): 
@@ -236,7 +241,7 @@ class CheckStateThread (threading.Thread):
                 aliveList = checkIndexerState()
 
 # Create new threads    
-#checkDBPerformace()
+checkDBPerformace()
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
 # Start new Threads
