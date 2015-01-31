@@ -19,9 +19,21 @@ def getExecuteTime():
     now=datetime.datetime.now()
     return time.mktime(now.timetuple())  
 
-def changeState(cmd, jobID, state, node, dbNode):
+def changeState(cmd, jobID, state, node, dbNode, order):
     # is called in case an error is found
     # insert state into MasterDB
+    mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+    db = mongoClient.logsearch
+    IndexerStateCollection = db.indexer_state
+    document = {
+                'jobID':jobID,
+                'state':state,
+                'node':node,
+                'dbNode':dbNode,
+                'order':order
+                }
+    if cmd == "insert":
+        IndexerStateCollection.insert(document)
     print "changeState"
 
 def generateJobID(size=10, chars=string.ascii_uppercase + string.digits+string.ascii_lowercase):
@@ -114,6 +126,7 @@ def getIndexer():
     indexerList = []
     for indexer in indexerCollection.find():
         indexerDict = {
+                       'id': indexer['_id'],
                        'name':indexer['name'],
                        'ip_addr':indexer['ip_addr'],
                        'port':indexer['port']
@@ -145,6 +158,7 @@ class TriggerThread (threading.Thread):
             print order
             print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
             # call changeState to add state on MasterDB
+            changeState("insert", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
         server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
         server.connect ( ( self.host, self.port ) )
         #infinite loop so that function do not terminate and thread do not end.
