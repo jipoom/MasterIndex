@@ -37,7 +37,11 @@ def isOldJob(jobID):
      
 def getTask():
     # Get tasks configured by users from MastDB
+    mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+    db = mongoClient.logsearch
+    taskCollection = db.service_config
     # return all tasks in List
+    return taskCollection.find() # dictionary type
     print "getTask"
 
 def getRecordFromStateDB(jobID):
@@ -67,12 +71,18 @@ def TriggerProcess():
     #triggerProcess.join()
     print "TriggerProcess: "+str(nextExecuteTime)    
 # rankProcess is to rank all processes by performance
-def rankProcess(aliveList): 
-    # SNMP to test CPU and memory
-    # reorder ranked process
-    # return 
+def rankProcess(indexerList): 
     print "rankProcess"
-    
+    performance = []
+    for indexer in indexerList:
+        # SNMP to test CPU and memory
+        performance.append('result'+indexer['name'])
+    # reorder ranked process
+    for indexer in performance:
+        print indexer
+        # sort indexers according to performance result
+    # return  
+    return indexerList
 # assignTask is to assign tasks to processes
 def sendTask(indexer,cmd): 
     # send cmd to the specified indexer
@@ -97,13 +107,20 @@ def getPort(process):
     
 def getIndexer(): 
     # get indexers from MasterDB
-    # return list of all indexers
+    print "getIndexer"  
     mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
     db = mongoClient.logsearch
     indexerCollection = db.MasterDB_indexer
+    indexerList = []
     for indexer in indexerCollection.find():
-        print indexer
-    print "getIndexer"   
+        indexerDict = {
+                       'name':indexer['name'],
+                       'ip_addr':indexer['ip_addr'],
+                       'port':indexer['port']
+                       }
+        indexerList.append(indexerDict)
+    return indexerList # dictionary type
+     
 
 class TriggerThread (threading.Thread):
     def __init__(self,host,port):
@@ -113,11 +130,21 @@ class TriggerThread (threading.Thread):
         self.port = port
     def run(self):
         # Get all indexer
+        indexerList = getIndexer()
         # rank all processes
-        # rankedLists = rankProcess(workingLists);
-        # Iterate ranked list and uniquePath and call sendTask(indexer,cmd)
-        # assign jobID to each node
-        # call changeState add state on MasterDB
+        rankedIndexer = rankProcess(indexerList)
+        print indexerList
+        tasks = getTask()
+        # Iterate over ranked list and uniquePath and call sendTask(indexer,cmd)
+        for i in range(0, tasks.count()):
+            cmd = "sudo -u logsearch python indexScript.py test "+tasks[i]['path']+" "+tasks[i]['logType']+" "+tasks[i]['logStartTag']+" "+tasks[i]['logEndTag']+" "+tasks[i]['msisdnRegex']+" "+tasks[i]['dateHolder']+" "+tasks[i]['dateRegex']+" "+tasks[i]['dateFormat']+" "+tasks[i]['timeRegex']+" "+tasks[i]['timeFormat']
+            # generate JobID
+            jobId = generateJobID()
+            # assign jobID to each node
+            order = "indexing#"+jobId+"#"+cmd
+            print order
+            print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
+            # call changeState to add state on MasterDB
         server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
         server.connect ( ( self.host, self.port ) )
         #infinite loop so that function do not terminate and thread do not end.
@@ -190,8 +217,8 @@ class CheckStateThread (threading.Thread):
                 self.nextkeepAliveTime = self.keepAliveTime+KEEPALIVE_TIME_GAP
                 aliveList = checkIndexerState()
 
-# Create new threads
-# getIndexer()
+# Create new threads    
+#rankProcess(getIndexer())
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
 # Start new Threads
