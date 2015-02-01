@@ -47,11 +47,16 @@ def isOldJob(jobID):
     # return boolean
     print "is old job?"
      
-def getTask():
-    # Get tasks configured by users from MastDB
-    mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
-    db = mongoClient.logsearch
-    taskCollection = db.service_config
+def getTask(mode):
+    if mode == "routine":
+        # Get tasks configured by users from MastDB
+        mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+        db = mongoClient.logsearch
+        taskCollection = db.service_config
+    elif mode == "error":
+        mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+        db = mongoClient.logsearch
+        taskCollection = db.indexer_state
     # return all tasks in List
     return taskCollection.find() # dictionary type
     print "getTask"
@@ -63,22 +68,27 @@ def getRecordFromStateDB(jobID):
     
 # keepAlive is to test if each process is still alive
 def checkIndexerState():
-    # aliveList = Query from working DB
-    # if a working process is dead
-    # then reassign task to another process 
-    
-    # if found dead
+    mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+    db = mongoClient.logsearch
+    IndexerStateCollection = db.indexer_state
+    deadIndexer = IndexerStateCollection.find({'state':'dead'})
+    if deadIndexer.count() > 0:
         # Create new thread (ErrorRecoveryThread)
-    # if found wait_writing
-        # Create new thread (WritingThread)           
-    # if found wait_indexing 
-        # Create new threads (TriggerProcess)
-               
+        print 'dead exists'
+    queingIndexer = IndexerStateCollection.find({'state':'wait_indexing'})
+    if queingIndexer.count() > 0:
+        # Create new threads (TriggerProcess error mode)
+        print 'queingIndexer exists'
+    queingWriter = IndexerStateCollection.find({'state':'wait_writing'})
+    if queingWriter.count() > 0:
+        # Create new thread (WritingThread)   
+        print 'queingWriter exists'              
     print "checkIndexerState"
  
 # TriggerProcess is to trigger process to work
-def TriggerProcess():
-    triggerProcess = TriggerThread( "127.0.0.1",9990  )
+def TriggerProcess(mode):
+    tasks = getTask(mode)
+    triggerProcess = TriggerThread( "127.0.0.1",9990,tasks)
     triggerProcess.start()
     #triggerProcess.join()
     print "TriggerProcess: "+str(nextExecuteTime)    
@@ -154,22 +164,23 @@ def getIndexer():
      
 
 class TriggerThread (threading.Thread):
-    def __init__(self,host,port):
+    def __init__(self,host,port,tasks):
         self.process = None
         threading.Thread.__init__(self)
         self.host = "127.0.0.1"
         self.port = 9990
+        self.tasks = tasks
     def run(self):
         # Get all indexer
         indexerList = getIndexer()
         # rank all processes
         rankedIndexer = rankProcess(indexerList)
         print indexerList
-        tasks = getTask()
+        # tasks = getTask()
         # Iterate over ranked list and uniquePath and call sendTask(indexer,cmd)
-        for i in range(0, tasks.count()):
+        for i in range(0, self.tasks.count()):
             # build cmd for indexer to run still missing the starting point (line number)
-            cmd = "sudo -u logsearch python indexScript.py test "+tasks[i]['path']+" "+tasks[i]['logType']+" "+tasks[i]['logStartTag']+" "+tasks[i]['logEndTag']+" "+tasks[i]['msisdnRegex']+" "+tasks[i]['dateHolder']+" "+tasks[i]['dateRegex']+" "+tasks[i]['dateFormat']+" "+tasks[i]['timeRegex']+" "+tasks[i]['timeFormat']
+            cmd = "sudo -u logsearch python indexScript.py test "+self.tasks[i]['path']+" "+self.tasks[i]['logType']+" "+self.tasks[i]['logStartTag']+" "+self.tasks[i]['logEndTag']+" "+self.tasks[i]['msisdnRegex']+" "+self.tasks[i]['dateHolder']+" "+self.tasks[i]['dateRegex']+" "+self.tasks[i]['dateFormat']+" "+self.tasks[i]['timeRegex']+" "+self.tasks[i]['timeFormat']
             # generate JobID
             jobId = generateJobID()
             # assign jobID to each node
@@ -263,7 +274,7 @@ while True:
     executeTime = getExecuteTime()
     if executeTime >= nextExecuteTime:
         nextExecuteTime = executeTime+EXECUTE_TIME_GAP
-        TriggerProcess()
+        TriggerProcess("routine")
     
     
     
