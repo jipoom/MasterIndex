@@ -96,7 +96,16 @@ def rankProcess(indexerList):
     # return  
     return indexerList
 # assignTask is to assign tasks to processes
-def sendTask(indexer,cmd): 
+def sendTask(indexerIpAddr,indexerPort,order): 
+    server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
+    #infinite loop so that function do not terminate and thread do not end.
+    try:
+        server.connect ( ( indexerIpAddr, indexerPort ) )
+        server.send (order)
+        server.close()       
+    except socket.error:
+        #came out of loop
+        server.close()
     # send cmd to the specified indexer
     # update MasterDB setting state as "indexing"
     # return 
@@ -148,8 +157,8 @@ class TriggerThread (threading.Thread):
     def __init__(self,host,port):
         self.process = None
         threading.Thread.__init__(self)
-        self.host = host
-        self.port = port
+        self.host = "127.0.0.1"
+        self.port = 9990
     def run(self):
         # Get all indexer
         indexerList = getIndexer()
@@ -159,6 +168,7 @@ class TriggerThread (threading.Thread):
         tasks = getTask()
         # Iterate over ranked list and uniquePath and call sendTask(indexer,cmd)
         for i in range(0, tasks.count()):
+            # build cmd for indexer to run still missing the starting point (line number)
             cmd = "sudo -u logsearch python indexScript.py test "+tasks[i]['path']+" "+tasks[i]['logType']+" "+tasks[i]['logStartTag']+" "+tasks[i]['logEndTag']+" "+tasks[i]['msisdnRegex']+" "+tasks[i]['dateHolder']+" "+tasks[i]['dateRegex']+" "+tasks[i]['dateFormat']+" "+tasks[i]['timeRegex']+" "+tasks[i]['timeFormat']
             # generate JobID
             jobId = generateJobID()
@@ -168,15 +178,17 @@ class TriggerThread (threading.Thread):
             print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
             # call changeState to add state on MasterDB
             changeState("insert", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
-        server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
-        server.connect ( ( self.host, self.port ) )
+            # send tasks to indexers
+            sendTask(self.host,self.port,order)
+        #server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
+        #server.connect ( ( self.host, self.port ) )
         #infinite loop so that function do not terminate and thread do not end.
-        try:
-            server.send ('indexing:<jobID>')
-            server.close()       
-        except socket.error:
-            #came out of loop
-            server.close()
+        #try:
+        #    server.send (order)
+        #    server.close()       
+        #except socket.error:
+        #    #came out of loop
+        #    server.close()
 
 class WritingThread (threading.Thread):
     def __init__(self,host,port):
