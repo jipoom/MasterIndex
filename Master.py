@@ -5,7 +5,7 @@ from pymongo import MongoClient
 # CONSTANT
 EXECUTE_TIME_GAP = 5; #seconds
 KEEPALIVE_TIME_GAP = 2; #seconds
-MASTER_DB = "192.168.1.38"
+MASTER_DB = "192.168.1.42"
 MASTER_DB_PORT = 27017
 processList = [("127.0.0.1","9999")]
 aliveList = []
@@ -25,13 +25,41 @@ def changeState(cmd, jobID, state, node, dbNode, order):
     mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
     db = mongoClient.logsearch
     IndexerStateCollection = db.indexer_state
-    document = {
-                'jobID':jobID,
-                'state':state,
-                'node':node,
-                'dbNode':dbNode,
-                'order':order
-                }
+    order = extractCmd(order)
+    if order[1] == 'multiLine':
+        document = {
+                    'jobID':jobID,
+                    'state':state,
+                    'node':node,
+                    'dbNode':dbNode,
+                    'path':order[0],
+                    'logType':order[1],
+                    'logStartTag':order[2],
+                    'logEndTag':order[3],
+                    'msisdnRegex':order[4],
+                    'dateHolder':order[5],
+                    'dateRegex':order[6],
+                    'dateFormat':order[7],
+                    'timeRegex':order[8],
+                    'timeFormat':order[9],
+                    'lastDoneRecord':order[10]    
+                    }
+    elif order[1] == 'singleLine':
+        document = {
+                    'jobID':jobID,
+                    'state':state,
+                    'node':node,
+                    'dbNode':dbNode,
+                    'path':order[0],
+                    'logType':order[1],
+                    'msisdnRegex':order[2],
+                    'dateHolder':order[3],
+                    'dateRegex':order[4],
+                    'dateFormat':order[5],
+                    'timeRegex':order[6],
+                    'timeFormat':order[7],
+                    'lastDoneRecord':order[8]      
+                    }
     if cmd == "insert":
         IndexerStateCollection.insert(document)
     print "changeState"
@@ -78,15 +106,21 @@ def checkIndexerState():
     queingIndexer = IndexerStateCollection.find({'state':'wait_indexing'})
     if queingIndexer.count() > 0:
         # Create new threads (TriggerProcess error mode)
+        triggerProcess('error')
         print 'queingIndexer exists'
     queingWriter = IndexerStateCollection.find({'state':'wait_writing'})
     if queingWriter.count() > 0:
         # Create new thread (WritingThread)   
         print 'queingWriter exists'              
     print "checkIndexerState"
+    
+# Extract CMD    
+def extractCmd(cmd):
+    return cmd.split('##')
+    
  
 # TriggerProcess is to trigger process to work
-def TriggerProcess(mode):
+def triggerProcess(mode):
     tasks = getTask(mode)
     triggerProcess = TriggerThread( "127.0.0.1",9990,tasks)
     triggerProcess.start()
@@ -180,17 +214,37 @@ class TriggerThread (threading.Thread):
         # Iterate over ranked list and uniquePath and call sendTask(indexer,cmd)
         for i in range(0, self.tasks.count()):
             # build cmd for indexer to run still missing the starting point (line number)
-            cmd = "sudo -u logsearch python indexScript.py test "+self.tasks[i]['path']+" "+self.tasks[i]['logType']+" "+self.tasks[i]['logStartTag']+" "+self.tasks[i]['logEndTag']+" "+self.tasks[i]['msisdnRegex']+" "+self.tasks[i]['dateHolder']+" "+self.tasks[i]['dateRegex']+" "+self.tasks[i]['dateFormat']+" "+self.tasks[i]['timeRegex']+" "+self.tasks[i]['timeFormat']
-            # generate JobID
-            jobId = generateJobID()
-            # assign jobID to each node
-            order = "indexing#"+jobId+"#"+cmd
-            print order
-            print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
-            # call changeState to add state on MasterDB
-            changeState("insert", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
+            if self.tasks[i]['logType'] == 'singleLine':
+                cmd = self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['lastDoneRecord']
+            elif self.tasks[i]['logType'] == 'multiLine':
+                cmd = self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['lastDoneRecord']
+            
+            if self.tasks[i]['state'] == 'wait_indexing':
+                jobId = self.tasks[i]['jobID']
+                order = "indexing##"+jobId+"##"+cmd
+                print "wait_indexing"
+                #print order
+                #print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
+                # call changeState to add state on MasterDB
+                # changeState("update", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
+            elif self.tasks[i]['state'] == 'wait_writing':
+                jobId = self.tasks[i]['jobID']
+                order = "writing##"+jobId+"##"+cmd
+                print order
+                print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
+                # call changeState to add state on MasterDB
+                changeState("update", jobId, "writing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
+            elif self.tasks[i]['state'] == 'new':
+                # generate JobID
+                jobId = generateJobID()
+                # assign jobID to each node
+                order = "indexing##"+jobId+"##"+cmd
+                print order
+                print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
+                # call changeState to add state on MasterDB
+                changeState("insert", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
             # send tasks to indexers
-            sendTask(self.host,self.port,order)
+            # sendTask(self.host,self.port,order)
         #server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
         #server.connect ( ( self.host, self.port ) )
         #infinite loop so that function do not terminate and thread do not end.
@@ -274,7 +328,7 @@ while True:
     executeTime = getExecuteTime()
     if executeTime >= nextExecuteTime:
         nextExecuteTime = executeTime+EXECUTE_TIME_GAP
-        TriggerProcess("routine")
+        triggerProcess("routine")
     
     
     
