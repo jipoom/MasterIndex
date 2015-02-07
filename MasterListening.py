@@ -1,4 +1,5 @@
-import socket, datetime, time, threading
+import socket, datetime, time, threading, pymongo
+from pymongo import MongoClient
 import sys
 
 
@@ -6,7 +7,30 @@ HOST = ''   # Symbolic name meaning all available interfaces
 PORT = 8888 # Arbitrary non-privileged port
 KEEPALIVE_TIME_GAP = 2; #seconds
 TIMEOUT = 5
+MASTER_DB = "192.168.1.42"
+STATE_DB = "192.168.1.42"
+MASTER_DB_PORT = 27017
+STATE_DB_PORT = 27017
+MasterDBConn = MongoClient(MASTER_DB, MASTER_DB_PORT)
+StateDBConn = MongoClient(STATE_DB, STATE_DB_PORT) 
+def changeStateMaster(jobID, state):
+    db = MasterDBConn.logsearch
+    indexerStateCollection = db.indexer_state
+    if state == 'remove':
+        indexerStateCollection.remove({'jobID': jobID})
+    else:    
+        indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state}})
 
+    
+def changeStateState(jobID, state):
+    db = StateDBConn.logsearch
+    indexerStateCollection = db.StateDB_state
+    if state == 'remove':
+        indexerStateCollection.remove({'jobID': jobID})
+        
+# Extract CMD    
+def extractCmd(cmd):
+    return cmd.split('##')   
 
 def getExecuteTime():
     now=datetime.datetime.now()
@@ -28,17 +52,21 @@ class clientThread (threading.Thread):
             # Listening for Keep Alive Status
             try:
                 data = self.conn.recv(1024)
-                if data =="keep-alive:indexing":
+                keepAlive = extractCmd(data);
+                if keepAlive[1] =="indexing":
                     print "got keep-alive:indexing from "+ self.addr[0]+":"+str(self.addr[1])
-                elif data =="keep-alive:writing":
+                elif keepAlive[1] =="writing":
                     print "got keep-alive:writing from "+ self.addr[0]+":"+str(self.addr[1])
-                elif data == "keep-alive:indexing-done":
+                elif keepAlive[1] == "indexing-done":
                     # update indexer's state to wait_writing on MasterDB 
+                    changeStateMaster(keepAlive[0],'wait_writing')
                     print "Indexing Done by: "+self.addr[0]+":"+str(self.addr[1])
                     break
-                elif data == "keep-alive:writing-done":
+                elif keepAlive[1] == "writing-done":
                     # Remove indexer state on MasterDB for this task 
                     # Remove indexer state on StateDB for this task 
+                    changeStateState(keepAlive[0],'remove')
+                    changeStateMaster(keepAlive[0],'remove')
                     print "Writing Done by: "+self.addr[0]+":"+str(self.addr[1])
                     break
                 #if not data: 
@@ -47,10 +75,12 @@ class clientThread (threading.Thread):
                 #conn.sendall(reply)
             except socket.timeout:
                     # update workingProcessDB setting state as dead 
+                    changeStateMaster(keepAlive[0],'dead')
                     print "timeout"
                     break
             except socket.error:
                     # update workingProcessDB setting state as dead 
+                    changeStateMaster(keepAlive[0],'dead')
                     print "close: "+self.addr[0]+":"+str(self.addr[1])
                     break;
             #Timeout occurred, do things
