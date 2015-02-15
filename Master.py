@@ -1,5 +1,7 @@
-import datetime, time, threading, socket, string, random, pymongo
+import datetime, time, threading, socket, string, random, pymongo, subprocess
 from pymongo import MongoClient
+from subprocess import check_output
+from operator import itemgetter
 # lists containing alive process
 # eg. 192.168.1.1:12345
 # CONSTANT
@@ -9,6 +11,9 @@ MASTER_DB = "192.168.1.42"
 STATE_DB = "192.168.1.42"
 MASTER_DB_PORT = 27017
 STATE_DB_PORT = 27017
+SS_CPU_IDLE = ".1.3.6.1.4.1.2021.11.11.0"
+MEM_AVAIL_REAL = ".1.3.6.1.4.1.2021.4.6.0"
+COMMUNITY_STRING= "allUser"
 processList = [("127.0.0.1","9999")]
 aliveList = []
 rankedList = []
@@ -176,11 +181,27 @@ def rankProcess(indexerList):
     performance = []
     for indexer in indexerList:
         # SNMP to test CPU and memory
-        performance.append('result'+indexer['name'])
+        # Get  % of CPU Idle
+        output = check_output(["snmpwalk ", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e","192.168.1.42",SS_CPU_IDLE])
+        ssCpuIdle = (int)(output.split(" ")[3])
+        # Get Memory available size
+        output = check_output(["snmpwalk ", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e","192.168.1.42",MEM_AVAIL_REAL])
+        memAvailReal = (int)(output.split(" ")[3])
+        indexerPerformance = {
+                       'name': indexer['name'],
+                       'ip_addr':indexer['ip_addr'],
+                       'port':indexer['port'],
+                       'memory': memAvailReal,
+                       'cpu': ssCpuIdle
+                       }
+        performance.append(indexerPerformance)
     # reorder ranked process
     for indexer in performance:
-        print indexer
+        print indexer['name'] + ', cpu : ' + (str)(indexer['cpu']) + ', memory : ' + (str)(indexer['memory'])
         # sort indexers according to performance result
+    indexerList = sorted(performance,key=itemgetter('cpu','memory'))
+    # print indexerList
+    # print sorted(performance,key=lambda k: (k['cpu'], k['memory']))
     # return  
     return indexerList
 # assignTask is to assign tasks to processes
@@ -378,7 +399,7 @@ class CheckStateThread (threading.Thread):
                 self.nextkeepAliveTime = self.keepAliveTime+KEEPALIVE_TIME_GAP
                 checkIndexerState()
 
-# Create new threads    
+# Create new threads
 checkDBPerformace(MASTER_DB)
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
