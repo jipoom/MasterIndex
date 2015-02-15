@@ -179,9 +179,11 @@ def triggerProcess(mode):
 def rankProcess(indexerList): 
     print "rankProcess"
     performance = []
+
     for indexer in indexerList:
         # SNMP to test CPU and memory
         # Get  % of CPU Idle
+
         output = check_output(["snmpwalk ", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e","192.168.1.42",SS_CPU_IDLE])
         ssCpuIdle = (int)(output.split(" ")[3])
         # Get Memory available size
@@ -195,12 +197,10 @@ def rankProcess(indexerList):
                        'cpu': ssCpuIdle
                        }
         performance.append(indexerPerformance)
-    # reorder ranked process
-    for indexer in performance:
-        print indexer['name'] + ', cpu : ' + (str)(indexer['cpu']) + ', memory : ' + (str)(indexer['memory'])
-        # sort indexers according to performance result
+
+    # sort indexers according to performance result
     indexerList = sorted(performance,key=itemgetter('cpu','memory'))
-    # print indexerList
+    print indexerList
     # print sorted(performance,key=lambda k: (k['cpu'], k['memory']))
     # return  
     return indexerList

@@ -1,15 +1,17 @@
-import subprocess
-from subprocess import check_output
-#status = subprocess.call("snmpwalk", shell=True)
-SS_CPU_IDLE = ".1.3.6.1.4.1.2021.11.11.0"
-MEM_AVAIL_REAL = ".1.3.6.1.4.1.2021.4.6.0"
-
-output = check_output(["snmpwalk ", "-v", "2c", "-c", "allUser","-O" ,"e","192.168.1.42",SS_CPU_IDLE])
-ssCpuIdle = (int)(output.split(" ")[3])
-
-output = check_output(["snmpwalk ", "-v", "2c", "-c", "allUser","-O" ,"e","192.168.1.42",MEM_AVAIL_REAL])
-memAvailReal = (int)(output.split(" ")[3])
-#check_output()
-print ssCpuIdle
-
-print memAvailReal
+import pymongo
+MASTER_DB = "192.168.1.42"
+def checkDBPerformace(host):
+    # check DB workload
+    # return T of F
+    #mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
+    #db = mongoClient.logsearch
+    #print db.command("collstats", "indexer_state")
+    #print db.command("currentOp")
+    conn = pymongo.connection.Connection(host, 27017)
+    all_ops = conn['admin']['$cmd.sys.inprog'].find_one('inprog')['inprog']
+    active_ops = [op for op in all_ops if op['active']]
+    conn.close();
+    print '%d/%d active operations' % (len(active_ops), len(all_ops))
+    print "checkDBPerformace"
+while 1:
+    checkDBPerformace(MASTER_DB)
