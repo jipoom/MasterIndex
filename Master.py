@@ -9,8 +9,10 @@ EXECUTE_TIME_GAP = 5; #seconds
 KEEPALIVE_TIME_GAP = 2; #seconds
 MASTER_DB = "192.168.1.42"
 STATE_DB = "192.168.1.42"
+MAIN_DB = "192.168.1.42"
 MASTER_DB_PORT = 27017
 STATE_DB_PORT = 27017
+MAIN_DB_PORT = 27017
 SS_CPU_IDLE = ".1.3.6.1.4.1.2021.11.11.0"
 MEM_AVAIL_REAL = ".1.3.6.1.4.1.2021.4.6.0"
 COMMUNITY_STRING= "allUser"
@@ -215,24 +217,19 @@ def sendTask(indexerIpAddr,indexerPort,order):
     except socket.error:
         #came out of loop
         server.close()
+        
     # send cmd to the specified indexer
     # update MasterDB setting state as "indexing"
     # return 
     print "sendTask"     
     
-def checkDBPerformace(host):
+def checkDBPerformace(host,port):
     # check DB workload
-    # return T of F
-    #mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
-    #db = mongoClient.logsearch
-    #print db.command("collstats", "indexer_state")
-    #print db.command("currentOp")
-    conn = pymongo.connection.Connection(host, 27017)
-    all_ops = conn['admin']['$cmd.sys.inprog'].find_one('inprog')['inprog']
-    active_ops = [op for op in all_ops if op['active']]
-    conn.close();
-    print '%d/%d active operations' % (len(active_ops), len(all_ops))
-    print "checkDBPerformace"
+    output = check_output(["mongostat.exe", "-host",host,"-port",str(port),"-n", "1"])
+    insert = output.split('\n')
+    insertRate = insert[2].split('    *')
+    # performace rate
+    return (int)(insertRate[1])
     
 def getIndexer(): 
     # get indexers from MasterDB
@@ -256,11 +253,13 @@ class TriggerThread (threading.Thread):
         threading.Thread.__init__(self)
         self.tasks = tasks
     def run(self):
+        sendOk = False
         # Get all indexer
         indexerList = getIndexer()
         # rank all processes
         rankedIndexer = rankProcess(indexerList)
         print indexerList
+        
         order = ""
         # tasks = getTask()
         # Iterate over ranked list and uniquePath and call sendTask(indexer,cmd)
@@ -276,24 +275,27 @@ class TriggerThread (threading.Thread):
                     cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['mmin']+'##'+self.tasks[i]['interval']+'##'+self.tasks[i]['lastDoneRecord']
                 jobId = self.tasks[i]['jobID']
                 order = "indexing##"+jobId+"##"+cmd
+                sendOk = True
                 print "wait_indexing"
                 # call changeState to update state on MasterDB
                 changeState("update", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
             # wait_writing found
             elif self.tasks[i]['state'] == 'wait_writing':
                 # if indexingDB is working less than 5000 records/sec
-                if self.tasks[i]['db'] == '':
-                    cmd = "withoutDB"
-                else:
-                    cmd = "withDB##"+self.tasks[i]['db'];
-                jobId = self.tasks[i]['jobID']
-                order = "writing##"+jobId+"##"+cmd
-                print "wait_writing"
-                print order
-                # print order
-                # print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
-                # call changeState to add state on MasterDB
-                changeState("update", jobId, "writing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
+                if(checkDBPerformace(MAIN_DB, MAIN_DB_PORT) < 4500):
+                    if self.tasks[i]['db'] == '':
+                        cmd = "withoutDB"
+                    else:
+                        cmd = "withDB##"+self.tasks[i]['db'];
+                    jobId = self.tasks[i]['jobID']
+                    order = "writing##"+jobId+"##"+cmd
+                    sendOk = True
+                    print "wait_writing"
+                    print order
+                    # print order
+                    # print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
+                    # call changeState to add state on MasterDB
+                    changeState("update", jobId, "writing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
             # routing task
             elif self.tasks[i]['state'] == 'new':
                 # build cmd for indexer to run still missing the starting point (line number)
@@ -301,18 +303,20 @@ class TriggerThread (threading.Thread):
                     cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['mmin']+'##'+self.tasks[i]['interval']+'##'+self.tasks[i]['lastDoneRecord']
                 elif self.tasks[i]['logType'] == 'multiLine':
                     cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['mmin']+'##'+self.tasks[i]['interval']+'##'+self.tasks[i]['lastDoneRecord']
-          
+                    
                 # generate JobID
                 jobId = generateJobID()
                 # assign jobID to each node
                 order = "indexing##"+jobId+"##"+cmd
+                sendOk = True
                 # print "indexing"
                 # print order
                 # print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
                 # call changeState to add state on MasterDB
                 changeState("insert", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
             # send tasks to indexers
-            # sendTask(indexerIPAddr,indexerPort,order)
+            if(sendOk):
+                sendTask(indexerIPAddr,indexerPort,order)
 
 class WritingThread (threading.Thread):
     def __init__(self,host,port):
@@ -400,7 +404,7 @@ class CheckStateThread (threading.Thread):
                 checkIndexerState()
 
 # Create new threads
-checkDBPerformace(MASTER_DB)
+checkDBPerformace(MAIN_DB,MAIN_DB_PORT)
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
 # Start new Threads
