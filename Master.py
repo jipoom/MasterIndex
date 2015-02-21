@@ -1,48 +1,28 @@
-import datetime, time, threading, socket, string, random, pymongo, subprocess
+import sys, datetime, time, threading, socket, string, random, pymongo
 from pymongo import MongoClient
 from subprocess import check_output
 from operator import itemgetter
 # lists containing alive process
 # eg. 192.168.1.1:12345
-# CONSTANT
-EXECUTE_TIME_GAP = 5; #seconds
-KEEPALIVE_TIME_GAP = 2; #seconds
-MASTER_DB = "192.168.1.42"
-STATE_DB = "192.168.1.42"
-MAIN_DB = "192.168.1.42"
-MASTER_DB_PORT = 27017
-STATE_DB_PORT = 27017
-MAIN_DB_PORT = 27017
-SS_CPU_IDLE = ".1.3.6.1.4.1.2021.11.11.0"
-MEM_AVAIL_REAL = ".1.3.6.1.4.1.2021.4.6.0"
-COMMUNITY_STRING= "allUser"
-processList = [("127.0.0.1","9999")]
-aliveList = []
-rankedList = []
-uniquePath = []
-now=datetime.datetime.now()
-nextExecuteTime = time.mktime(now.timetuple())+5
-nextkeepAliveTime = time.mktime(now.timetuple())+KEEPALIVE_TIME_GAP
-MasterDBConn = MongoClient(MASTER_DB, MASTER_DB_PORT)
-StateDBConn = MongoClient(STATE_DB, STATE_DB_PORT) 
 
 def getExecuteTime():
     now=datetime.datetime.now()
     return time.mktime(now.timetuple())  
-
 def changeState(cmd, jobID, state, node, dbNode, order):
     # is called in case an error is found
     # insert state into MasterDB
-    db = MasterDBConn.logsearch
+    db = MASTER_DB_CONN.logsearch
     indexerStateCollection = db.indexer_state
     if cmd == "insert": 
+        # for already indexed records
         if state == "wait_writing":
             document = {
                         'jobID':jobID,
                         'state':state,
                         'node':node,
                         'db':dbNode,
-                        'lastDoneRecord':order
+                        'lastDoneRecord':order,
+                        'executionTime':int(time.time()) 
                         }
         else:    
             order = extractCmd(order)
@@ -66,9 +46,10 @@ def changeState(cmd, jobID, state, node, dbNode, order):
                             'dateFormat':order[11],
                             'timeRegex':order[12],
                             'timeFormat':order[13],
-                            'mmin':order[14],
-                            'interval':order[15],
-                            'lastDoneRecord':order[16]    
+                            'mmin':int(order[14]),
+                            'interval':int(order[15]),
+                            'lastDoneRecord':order[16],
+                            'executionTime':int(time.time())    
                             }
             elif order[5] == 'singleLine':
                 document = {
@@ -88,9 +69,10 @@ def changeState(cmd, jobID, state, node, dbNode, order):
                             'dateFormat':order[9],
                             'timeRegex':order[10],
                             'timeFormat':order[11],
-                            'mmin':order[12],
-                            'interval':order[13],
-                            'lastDoneRecord':order[14]      
+                            'mmin':int(order[12]),
+                            'interval':int(order[13]),
+                            'lastDoneRecord':order[14],
+                            'executionTime':int(time.time())     
                             }
         indexerStateCollection.insert(document)
     elif cmd == "update":
@@ -116,14 +98,16 @@ def getTask(mode):
     #db = mongoClient.logsearch
     if mode == "routine":
         # Get tasks configured by users from MastDB
-        taskCollection = retrieveCollection(MasterDBConn,'logsearch','service_config')
+        taskCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','service_config')
+        # return all tasks in List
+        return taskCollection.find({"$where": "this.lastExecutionTime+this.interval <= "+ str(time.time())}) # dictionary type
         #taskCollection = db.service_config
     elif mode == "error":
-        taskCollection = retrieveCollection(MasterDBConn,'logsearch','indexer_state')
+        taskCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','indexer_state')
         #taskCollection = db.indexer_state
+        # return all tasks in List
+        return taskCollection.find() # dictionary type
     #mongoClient.close();
-    # return all tasks in List
-    return taskCollection.find() # dictionary type
     print "getTask"
 
 def getRecordFromStateDB():
@@ -149,7 +133,7 @@ def checkIndexerState():
     #mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
     #db = mongoClient.logsearch
     #IndexerStateCollection = db.indexer_state
-    IndexerStateCollection = retrieveCollection(MasterDBConn,'logsearch','indexer_state')
+    IndexerStateCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','indexer_state')
     deadIndexer = IndexerStateCollection.find({'state':'dead'})
     if deadIndexer.count() > 0:
         # Create new thread (ErrorRecoveryThread)
@@ -176,7 +160,7 @@ def triggerProcess(mode):
     triggerProcess = TriggerThread(tasks)
     triggerProcess.start()
     #triggerProcess.join()
-    print "TriggerProcess: "+str(nextExecuteTime)    
+    print "TriggerProcess: "+str(NEXT_EXECUTION_TIME)    
 # rankProcess is to rank all processes by performance
 def rankProcess(indexerList): 
     print "rankProcess"
@@ -227,14 +211,17 @@ def checkDBPerformace(host,port):
     # check DB workload
     output = check_output(["mongostat.exe", "-host",host,"-port",str(port),"-n", "1"])
     insert = output.split('\n')
-    insertRate = insert[2].split('    *')
+    # get first column of the result (insert rate)
+    insertRate = insert[2][:6]
     # performace rate
-    return (int)(insertRate[1])
+    # print output
+    # print insertRate
+    return (int)(insertRate.translate(None, ' *'))
     
 def getIndexer(): 
     # get indexers from MasterDB
     print "getIndexer"  
-    indexerCollection = retrieveCollection(MasterDBConn,'logsearch','MasterDB_indexer')
+    indexerCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','MasterDB_indexer')
     indexerList = []
     for indexer in indexerCollection.find():
         indexerDict = {
@@ -270,9 +257,9 @@ class TriggerThread (threading.Thread):
             if self.tasks[i]['state'] == 'wait_indexing':
                 # build cmd for indexer to run still missing the starting point (line number)
                 if self.tasks[i]['logType'] == 'singleLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['mmin']+'##'+self.tasks[i]['interval']+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
                 elif self.tasks[i]['logType'] == 'multiLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['mmin']+'##'+self.tasks[i]['interval']+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
                 jobId = self.tasks[i]['jobID']
                 order = "indexing##"+jobId+"##"+cmd
                 sendOk = True
@@ -282,7 +269,7 @@ class TriggerThread (threading.Thread):
             # wait_writing found
             elif self.tasks[i]['state'] == 'wait_writing':
                 # if indexingDB is working less than 5000 records/sec
-                if(checkDBPerformace(MAIN_DB, MAIN_DB_PORT) < 4500):
+                if(checkDBPerformace(INDEXED_DB, INDEXED_DB_PORT) < 4500):
                     if self.tasks[i]['db'] == '':
                         cmd = "withoutDB"
                     else:
@@ -297,12 +284,12 @@ class TriggerThread (threading.Thread):
                     # call changeState to add state on MasterDB
                     changeState("update", jobId, "writing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
             # routing task
-            elif self.tasks[i]['state'] == 'new':
+            elif self.tasks[i]['state'] == 'routine':
                 # build cmd for indexer to run still missing the starting point (line number)
                 if self.tasks[i]['logType'] == 'singleLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['mmin']+'##'+self.tasks[i]['interval']+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
                 elif self.tasks[i]['logType'] == 'multiLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+self.tasks[i]['mmin']+'##'+self.tasks[i]['interval']+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
                     
                 # generate JobID
                 jobId = generateJobID()
@@ -313,7 +300,12 @@ class TriggerThread (threading.Thread):
                 # print order
                 # print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
                 # call changeState to add state on MasterDB
+                
                 changeState("insert", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
+                # updateExecutionTime
+                db = MASTER_DB_CONN.logsearch
+                serviceConfigCollection = db.service_config
+                serviceConfigCollection.update({'_id': self.tasks[i]['_id']}, {"$set": {'lastExecutionTime': int(time.time())}})
             # send tasks to indexers
             if(sendOk):
                 sendTask(indexerIPAddr,indexerPort,order)
@@ -350,10 +342,10 @@ class ErrorRecoveryThread (threading.Thread):
     def run(self):
         print "ErrorRecoveryThread"
         # get DeadIndexer
-        indexerStateCollection = retrieveCollection(MasterDBConn,'logsearch','indexer_state')
+        indexerStateCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','indexer_state')
         deadIndexer = indexerStateCollection.find({'state':'dead'})
-        stateDBCollection = retrieveCollection(StateDBConn,'logsearch','StateDB_state')
-        indexerDetailCollection = retrieveCollection(MasterDBConn,'logsearch','MasterDB_indexer')
+        stateDBCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+        indexerDetailCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','MasterDB_indexer')
 
         for i in range(0, deadIndexer.count()):
             # get before-dead state
@@ -365,7 +357,7 @@ class ErrorRecoveryThread (threading.Thread):
             if oldIndexer['state'] == "indexing":           
                 # if local DB of the dead indexer is alive
                 try:
-                    checkLocalDB = MongoClient(deadIdxDetail['ip_addr'], MASTER_DB_PORT)
+                    checkLocalDB = MongoClient(MASTER_DB, MASTER_DB_PORT)
                     checkLocalDB.close()
                     # Creat new job ID for writing
                     jobId = generateJobID()
@@ -403,8 +395,28 @@ class CheckStateThread (threading.Thread):
                 self.nextkeepAliveTime = self.keepAliveTime+KEEPALIVE_TIME_GAP
                 checkIndexerState()
 
+
+# checkDBPerformace(MAIN_DB,MAIN_DB_PORT)
+# CONSTANT
+EXECUTE_TIME_GAP = 5; #seconds
+KEEPALIVE_TIME_GAP = 2; #seconds
+SS_CPU_IDLE = ".1.3.6.1.4.1.2021.11.11.0"
+MEM_AVAIL_REAL = ".1.3.6.1.4.1.2021.4.6.0"
+COMMUNITY_STRING= "allUser"
+now=datetime.datetime.now()
+NEXT_EXECUTION_TIME = time.mktime(now.timetuple())+5
+NEXT_KEEPALIVE_TIME = time.mktime(now.timetuple())+KEEPALIVE_TIME_GAP
+MASTER_DB = sys.argv[1]
+MASTER_DB_PORT = int(sys.argv[2])
+MASTER_DB_CONN = MongoClient(MASTER_DB, MASTER_DB_PORT)
+databaseCollection = retrieveCollection(MASTER_DB_CONN,"logsearch","Database_config")
+STATE_DB = databaseCollection.find_one({'name':'State_DB'})['ip_addr']
+STATE_DB_PORT = databaseCollection.find_one({'name':'State_DB'})['port']
+STATE_DB_CONN = MongoClient(STATE_DB, STATE_DB_PORT) 
+INDEXED_DB = databaseCollection.find_one({'name':'Indexed_DB'})['ip_addr']
+INDEXED_DB_PORT = databaseCollection.find_one({'name':'Indexed_DB'})['port']
+
 # Create new threads
-checkDBPerformace(MAIN_DB,MAIN_DB_PORT)
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
 # Start new Threads
@@ -412,8 +424,8 @@ checkStateThread.start()
 while True:
     uniquePath = [] # read from configuration file node:path
     executeTime = getExecuteTime()
-    if executeTime >= nextExecuteTime:
-        nextExecuteTime = executeTime+EXECUTE_TIME_GAP
+    if executeTime >= NEXT_EXECUTION_TIME:
+        NEXT_EXECUTION_TIME = executeTime+EXECUTE_TIME_GAP
         triggerProcess("routine")
     
     
