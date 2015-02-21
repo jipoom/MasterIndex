@@ -261,7 +261,8 @@ class TriggerThread (threading.Thread):
                 elif self.tasks[i]['logType'] == 'multiLine':
                     cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
                 jobId = self.tasks[i]['jobID']
-                order = "indexing##"+jobId+"##"+cmd
+                stateDB = STATE_DB+":"+str(STATE_DB_PORT)
+                order = "indexing##"+jobId+"##"+stateDB+"##"+cmd
                 sendOk = True
                 print "wait_indexing"
                 # call changeState to update state on MasterDB
@@ -275,7 +276,9 @@ class TriggerThread (threading.Thread):
                     else:
                         cmd = "withDB##"+self.tasks[i]['db'];
                     jobId = self.tasks[i]['jobID']
-                    order = "writing##"+jobId+"##"+cmd
+                    stateDB = STATE_DB+":"+str(STATE_DB_PORT)
+                    indexedDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
+                    order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+cmd
                     sendOk = True
                     print "wait_writing"
                     print order
@@ -294,7 +297,8 @@ class TriggerThread (threading.Thread):
                 # generate JobID
                 jobId = generateJobID()
                 # assign jobID to each node
-                order = "indexing##"+jobId+"##"+cmd
+                stateDB = STATE_DB+":"+str(STATE_DB_PORT)
+                order = "indexing##"+jobId+"##"+stateDB+"##"+cmd
                 sendOk = True
                 # print "indexing"
                 # print order
