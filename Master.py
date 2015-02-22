@@ -109,18 +109,7 @@ def getTask(mode):
         return taskCollection.find() # dictionary type
     #mongoClient.close();
     print "getTask"
-
-def getRecordFromStateDB():
-    # Get last record from state DB
-    mongoClient = MongoClient(STATE_DB, STATE_DB_PORT)
-    db = mongoClient.logsearch
-    stateCollection = db.StateDB_state
-    mongoClient.close()
-    # return string containing jobID:state:last_record:node
-    print "getRecordStateDB"
-    return stateCollection
-
-
+    
 def retrieveCollection(conn,dbName,colName):
     # Get last record from state DB
     db = conn[dbName]
@@ -190,22 +179,7 @@ def rankProcess(indexerList):
     # print sorted(performance,key=lambda k: (k['cpu'], k['memory']))
     # return  
     return indexerList
-# assignTask is to assign tasks to processes
-def sendTask(indexerIpAddr,indexerPort,order): 
-    server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
-    #infinite loop so that function do not terminate and thread do not end.
-    try:
-        server.connect ( ( indexerIpAddr, indexerPort ) )
-        server.send (order)
-        server.close()       
-    except socket.error:
-        #came out of loop
-        server.close()
-        
-    # send cmd to the specified indexer
-    # update MasterDB setting state as "indexing"
-    # return 
-    print "sendTask"     
+
     
 def checkDBPerformace(host,port):
     # check DB workload
@@ -240,20 +214,22 @@ class TriggerThread (threading.Thread):
         threading.Thread.__init__(self)
         self.tasks = tasks
     def run(self):
-        sendOk = False
         # Get all indexer
         indexerList = getIndexer()
         # rank all processes
         rankedIndexer = rankProcess(indexerList)
         print indexerList
-        
+        execTimeList = []
         order = ""
         # tasks = getTask()
         # Iterate over ranked list and uniquePath and call sendTask(indexer,cmd)
-        for i in range(0, self.tasks.count()):  
+        j=0;
+        i=0;
+        while (i < self.tasks.count()):
+        #for i in range(0, self.tasks.count()):  
             # wait_indexing found
-            indexerIPAddr = rankedIndexer[i%len(rankedIndexer)]['ip_addr']
-            indexerPort = rankedIndexer[i%len(rankedIndexer)]['port']
+            indexerIPAddr = rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr']
+            indexerPort = rankedIndexer[(i+j)%len(rankedIndexer)]['port']
             if self.tasks[i]['state'] == 'wait_indexing':
                 # build cmd for indexer to run still missing the starting point (line number)
                 if self.tasks[i]['logType'] == 'singleLine':
@@ -263,10 +239,24 @@ class TriggerThread (threading.Thread):
                 jobId = self.tasks[i]['jobID']
                 stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                 order = "indexing##"+jobId+"##"+stateDB+"##"+cmd
-                sendOk = True
                 print "wait_indexing"
+                
+                server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
+                #infinite loop so that function do not terminate and thread do not end.
+                try:  
+                    server.connect ( ( indexerIPAddr, indexerPort ) )
+                    server.send (order)
+                    server.close()    
+                    # call changeState to update state on MasterDB
+                    changeState("update", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","")   
+                except socket.error:
+                    j+=1
+                    i-=1
+                    print "error: indexer-"+rankedIndexer[(i+j)%len(rankedIndexer)]['name']+" is not ready"
+                    server.close()
+                
                 # call changeState to update state on MasterDB
-                changeState("update", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
+                # changeState("update", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
             # wait_writing found
             elif self.tasks[i]['state'] == 'wait_writing':
                 # if indexingDB is working less than 5000 records/sec
@@ -279,13 +269,27 @@ class TriggerThread (threading.Thread):
                     stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                     indexedDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
                     order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+cmd
-                    sendOk = True
                     print "wait_writing"
                     print order
+                    
+                    server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
+                    #infinite loop so that function do not terminate and thread do not end.
+                    try:  
+                        server.connect ( ( indexerIPAddr, indexerPort ) )
+                        server.send (order)
+                        server.close()    
+                        # call changeState to add state on MasterDB
+                        changeState("update", jobId, "writing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","") 
+                    except socket.error:
+                        j+=1
+                        i-=1
+                        print "error: indexer-"+rankedIndexer[(i+j)%len(rankedIndexer)]['name']+" is not ready"
+                        server.close()
+                    
                     # print order
                     # print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
                     # call changeState to add state on MasterDB
-                    changeState("update", jobId, "writing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
+                    # changeState("update", jobId, "writing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
             # routing task
             elif self.tasks[i]['state'] == 'routine':
                 # build cmd for indexer to run still missing the starting point (line number)
@@ -299,20 +303,33 @@ class TriggerThread (threading.Thread):
                 # assign jobID to each node
                 stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                 order = "indexing##"+jobId+"##"+stateDB+"##"+cmd
-                sendOk = True
                 # print "indexing"
                 # print order
                 # print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
-                # call changeState to add state on MasterDB
-                
-                changeState("insert", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "",cmd)
-                # updateExecutionTime
-                db = MASTER_DB_CONN.logsearch
-                serviceConfigCollection = db.service_config
-                serviceConfigCollection.update({'_id': self.tasks[i]['_id']}, {"$set": {'lastExecutionTime': int(time.time())}})
-            # send tasks to indexers
-            if(sendOk):
-                sendTask(indexerIPAddr,indexerPort,order)
+                server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
+                #infinite loop so that function do not terminate and thread do not end.
+                try:  
+                    server.connect ( ( indexerIPAddr, indexerPort ) )
+                    server.send (order)
+                    server.close()    
+                    # call changeState to add state on MasterDB
+                    changeState("insert", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "",cmd)
+                    execTimeDict = {
+                                '_id': self.tasks[i]['_id'],
+                                'lastExecutionTime':int(time.time())
+                                }
+                    execTimeList.append(execTimeDict)
+                except socket.error:
+                    j+=1
+                    i-=1
+                    print "error: indexer-"+rankedIndexer[(i+j)%len(rankedIndexer)]['name']+" is not ready"
+                    server.close()
+            i+=1     
+        # updateExecutionTime
+        for i in range(0, len(execTimeList)): 
+            db = MASTER_DB_CONN.logsearch
+            serviceConfigCollection = db.service_config
+            serviceConfigCollection.update({'_id': execTimeList[i]['_id']}, {"$set": {'lastExecutionTime': execTimeList[i]['lastExecutionTime']}})
 
 class WritingThread (threading.Thread):
     def __init__(self,host,port):
