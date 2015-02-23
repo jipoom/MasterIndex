@@ -25,7 +25,7 @@ def changeState(cmd, jobID, state, indexer, database, order, lastDoneRecord,last
                         'lastFileName':"0",
                         'executionTime':int(time.time()) 
                         }
-        # routine or startover case
+        # routine or startover (wait_indexing) case
         else:    
             order = extractCmd(order)
             if order[5] == 'multiLine':
@@ -85,7 +85,7 @@ def changeState(cmd, jobID, state, indexer, database, order, lastDoneRecord,last
             indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer, 'db_ip':database}})
         elif state == "writing":
             indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer}})
-        #wait_writing
+        #wait_writing wait_indexing
         else:
             indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer, 'lastDoneRecord' : lastDoneRecord, 'lastFileName':lastFileName}})
         
