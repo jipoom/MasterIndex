@@ -8,7 +8,7 @@ from operator import itemgetter
 def getExecuteTime():
     now=datetime.datetime.now()
     return time.mktime(now.timetuple())  
-def changeState(cmd, jobID, state, node, dbNode, order):
+def changeState(cmd, jobID, state, indexer, database, order, lastDoneRecord,lastFileName):
     # is called in case an error is found
     # insert state into MasterDB
     db = MASTER_DB_CONN.logsearch
@@ -19,19 +19,21 @@ def changeState(cmd, jobID, state, node, dbNode, order):
             document = {
                         'jobID':jobID,
                         'state':state,
-                        'node':node,
-                        'db':dbNode,
-                        'lastDoneRecord':order,
+                        'node':indexer,
+                        'db_ip':database,
+                        'lastDoneRecord':lastDoneRecord,
+                        'lastFileName':"0",
                         'executionTime':int(time.time()) 
                         }
+        # routine or startover case
         else:    
             order = extractCmd(order)
             if order[5] == 'multiLine':
                 document = {
                             'jobID':jobID,
                             'state':state,
-                            'indexer':node,
-                            'db':dbNode,
+                            'indexer':indexer,
+                            'db_ip':database,
                             'service':order[0],
                             'system':order[1],
                             'node':order[2],
@@ -48,15 +50,16 @@ def changeState(cmd, jobID, state, node, dbNode, order):
                             'timeFormat':order[13],
                             'mmin':int(order[14]),
                             'interval':int(order[15]),
-                            'lastDoneRecord':order[16],
+                            'lastFileName': order[16],
+                            'lastDoneRecord':order[17],
                             'executionTime':int(time.time())    
                             }
             elif order[5] == 'singleLine':
                 document = {
                             'jobID':jobID,
                             'state':state,
-                            'indexer':node,
-                            'db':dbNode,
+                            'indexer':indexer,
+                            'db_ip':database,
                             'service':order[0],
                             'system':order[1],
                             'node':order[2],
@@ -71,15 +74,21 @@ def changeState(cmd, jobID, state, node, dbNode, order):
                             'timeFormat':order[11],
                             'mmin':int(order[12]),
                             'interval':int(order[13]),
-                            'lastDoneRecord':order[14],
+                            'lastFileName':order[14],
+                            'lastDoneRecord':order[15],
                             'executionTime':int(time.time())     
                             }
         indexerStateCollection.insert(document)
+
     elif cmd == "update":
-        if order == "":
-            indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': node}})
+        if state == "indexing":
+            indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer, 'db_ip':database}})
+        elif state == "writing":
+            indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer}})
+        #wait_writing
         else:
-            indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'lastDoneRecord':order}})
+            indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer, 'lastDoneRecord' : lastDoneRecord, 'lastFileName':lastFileName}})
+        
     print "changeState"
 
 def generateJobID(size=10, chars=string.ascii_uppercase + string.digits+string.ascii_lowercase):
@@ -100,7 +109,7 @@ def getTask(mode):
         # Get tasks configured by users from MastDB
         taskCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','service_config')
         # return all tasks in List
-        return taskCollection.find({"$where": "this.lastExecutionTime+this.interval <= "+ str(time.time())}) # dictionary type
+        return taskCollection.find({"$where": "this.lastExecutionTime+this.frequency <= "+ str(time.time())}) # dictionary type
         #taskCollection = db.service_config
     elif mode == "error":
         taskCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','indexer_state')
@@ -233,9 +242,9 @@ class TriggerThread (threading.Thread):
             if self.tasks[i]['state'] == 'wait_indexing':
                 # build cmd for indexer to run still missing the starting point (line number)
                 if self.tasks[i]['logType'] == 'singleLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+self.tasks[i]['lastDoneRecord']
                 elif self.tasks[i]['logType'] == 'multiLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+self.tasks[i]['lastDoneRecord']
                 jobId = self.tasks[i]['jobID']
                 stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                 order = "indexing##"+jobId+"##"+stateDB+"##"+cmd
@@ -247,8 +256,8 @@ class TriggerThread (threading.Thread):
                     server.connect ( ( indexerIPAddr, indexerPort ) )
                     server.send (order)
                     server.close()    
-                    # call changeState to update state on MasterDB
-                    changeState("update", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","")   
+                    # call changeState to update on MasterDB (indexer_state)
+                    changeState("update", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],"","","")   
                 except socket.error:
                     j+=1
                     i-=1
@@ -261,14 +270,10 @@ class TriggerThread (threading.Thread):
             elif self.tasks[i]['state'] == 'wait_writing':
                 # if indexingDB is working less than 5000 records/sec
                 if(checkDBPerformace(INDEXED_DB, INDEXED_DB_PORT) < 4500):
-                    if self.tasks[i]['db'] == '':
-                        cmd = "withoutDB"
-                    else:
-                        cmd = "withDB##"+self.tasks[i]['db'];
                     jobId = self.tasks[i]['jobID']
                     stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                     indexedDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
-                    order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+cmd
+                    order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+self.tasks[i]['db_ip']+"##"+self.tasks[i]['lastDoneRecord']
                     print "wait_writing"
                     print order
                     
@@ -279,7 +284,7 @@ class TriggerThread (threading.Thread):
                         server.send (order)
                         server.close()    
                         # call changeState to add state on MasterDB
-                        changeState("update", jobId, "writing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","") 
+                        changeState("update", jobId, "writing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","","","") 
                     except socket.error:
                         j+=1
                         i-=1
@@ -294,9 +299,9 @@ class TriggerThread (threading.Thread):
             elif self.tasks[i]['state'] == 'routine':
                 # build cmd for indexer to run still missing the starting point (line number)
                 if self.tasks[i]['logType'] == 'singleLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+self.tasks[i]['lastDoneRecord']
                 elif self.tasks[i]['logType'] == 'multiLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+self.tasks[i]['lastDoneRecord']
                     
                 # generate JobID
                 jobId = generateJobID()
@@ -313,7 +318,7 @@ class TriggerThread (threading.Thread):
                     server.send (order)
                     server.close()    
                     # call changeState to add state on MasterDB
-                    changeState("insert", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "",cmd)
+                    changeState("insert", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],cmd,"0","")
                     execTimeDict = {
                                 '_id': self.tasks[i]['_id'],
                                 'lastExecutionTime':int(time.time())
@@ -378,31 +383,36 @@ class ErrorRecoveryThread (threading.Thread):
             if oldIndexer['state'] == "indexing":           
                 # if local DB of the dead indexer is alive
                 try:
-                    checkLocalDB = MongoClient(MASTER_DB, MASTER_DB_PORT)
+                    checkLocalDB = MongoClient(oldIndexer['db_ip'], MASTER_DB_PORT)
                     checkLocalDB.close()
                     # Creat new job ID for writing
                     jobId = generateJobID()
-                    # for aldeary indexed records
-                    changeState("insert", jobId, "wait_writing", "",deadIdxDetail['ip_addr'],"0")
+                    if deadIndexer[i]['logType'] == 'singleLine':
+                        order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+oldIndexer['lastDoneRecord']
+                    elif deadIndexer[i]['logType'] == 'multiLine':
+                        order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+self.tasks[i]['logType']+"##"+deadIndexer[i]['logStartTag']+"##"+deadIndexer[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+oldIndexer['lastDoneRecord']
                     # for non-indexed records
-                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "",oldIndexer['lastDoneRecord'])
+                    changeState("insert", jobId, "wait_indexing", "", "",order,oldIndexer['lastDoneRecord'],oldIndexer['lastFileName'])
+                    # for aldeary indexed records
+                    
+                    changeState("update", oldIndexer['jobID'], "wait_writing", "",deadIdxDetail['ip_addr'],"","0","")
                 # if local DB of the dead indexer is also dead
                 except pymongo.errors.ConnectionFailure:
                     # start over from the beginning
-                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","0")               
+                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","0","")               
                     
             # if stateDB shows "writing"
             if oldIndexer['state'] == "writing":
                 # if local DB of the dead indexer is alive
                 try:
-                    testLocalDB = MongoClient(deadIdxDetail['ip_addr'], MASTER_DB_PORT)
+                    testLocalDB = MongoClient(oldIndexer['db_ip'], MASTER_DB_PORT)
                     testLocalDB.close()
-                    changeState("update", oldIndexer['jobID'], "wait_writing", "", deadIdxDetail['ip_addr'],"0")
+                    changeState("update", oldIndexer['jobID'], "wait_writing", "", "",deadIdxDetail['ip_addr'],oldIndexer['lastDoneRecord'],"")
                     # get the last written record of the dead indexer from stateDB
                     # Call addTask(wait_writing, indexer's local_DB) to add Task to MasterDB 
                 except pymongo.errors.ConnectionFailure:
                     # start over from the beginning
-                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","0")           
+                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","0","")           
 
 class CheckStateThread (threading.Thread):
     def __init__(self, executeTime, nextkeepAliveTime):
