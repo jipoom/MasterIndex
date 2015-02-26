@@ -177,6 +177,7 @@ def rankProcess(indexerList):
                        'name': indexer['name'],
                        'ip_addr':indexer['ip_addr'],
                        'port':indexer['port'],
+                       'db_port':indexer['db_port'],
                        'memory': memAvailReal,
                        'cpu': ssCpuIdle
                        }
@@ -211,7 +212,8 @@ def getIndexer():
                        'id': indexer['_id'],
                        'name':indexer['name'],
                        'ip_addr':indexer['ip_addr'],
-                       'port':indexer['port']
+                       'port':indexer['port'],
+                       'db_port':indexer['db_port']
                        }
         indexerList.append(indexerDict)
     return indexerList # dictionary type
@@ -239,6 +241,7 @@ class TriggerThread (threading.Thread):
             # wait_indexing found
             indexerIPAddr = rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr']
             indexerPort = rankedIndexer[(i+j)%len(rankedIndexer)]['port']
+            print rankedIndexer[(i+j)%len(rankedIndexer)]
             if self.tasks[i]['state'] == 'wait_indexing':
                 # build cmd for indexer to run still missing the starting point (line number)
                 if self.tasks[i]['logType'] == 'singleLine':
@@ -253,7 +256,7 @@ class TriggerThread (threading.Thread):
                 server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
                 #infinite loop so that function do not terminate and thread do not end.
                 try:  
-                    server.connect ( ( indexerIPAddr, indexerPort ) )
+                    server.connect ( ( indexerIPAddr, int(indexerPort) ) )
                     server.send (order)
                     server.close()    
                     # insert task into state DB
@@ -281,7 +284,7 @@ class TriggerThread (threading.Thread):
                     jobId = self.tasks[i]['jobID']
                     stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                     indexedDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
-                    localIndexedDB = self.tasks[i]['db_ip']+":"+str(LOCAL_DB_PORT)
+                    localIndexedDB = self.tasks[i]['db_ip']+":"+str(rankedIndexer[(i+j)%len(rankedIndexer)]['db_port'])
                     order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+localIndexedDB+"##"+self.tasks[i]['lastDoneRecord']
                     print "wait_writing"
                     print order
@@ -289,7 +292,7 @@ class TriggerThread (threading.Thread):
                     server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
                     #infinite loop so that function do not terminate and thread do not end.
                     try:  
-                        server.connect ( ( indexerIPAddr, indexerPort ) )
+                        server.connect ( ( indexerIPAddr, int(indexerPort) ) )
                         server.send (order)
                         server.close()  
                         # update task on state DB
@@ -326,7 +329,7 @@ class TriggerThread (threading.Thread):
                 server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
                 #infinite loop so that function do not terminate and thread do not end.
                 try:  
-                    server.connect ( ( indexerIPAddr, indexerPort ) )
+                    server.connect ( ( indexerIPAddr, int(indexerPort) ) )
                     server.send (order)
                     server.close()    
                     # insert task into state DB
@@ -467,7 +470,8 @@ STATE_DB_PORT = databaseCollection.find_one({'name':'State_DB'})['port']
 STATE_DB_CONN = MongoClient(STATE_DB, STATE_DB_PORT) 
 INDEXED_DB = databaseCollection.find_one({'name':'Indexed_DB'})['ip_addr']
 INDEXED_DB_PORT = databaseCollection.find_one({'name':'Indexed_DB'})['port']
-LOCAL_DB_PORT = databaseCollection.find_one({'name':'Indexed_DB'})['port']
+#localportCollection = retrieveCollection(MASTER_DB_CONN,"logsearch","MasterDB_Indexer")
+#LOCAL_DB_PORT = databaseCollection.find_one({'name':'Indexed_DB'})['db_port']
 # Create new threads
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
