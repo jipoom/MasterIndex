@@ -256,6 +256,14 @@ class TriggerThread (threading.Thread):
                     server.connect ( ( indexerIPAddr, indexerPort ) )
                     server.send (order)
                     server.close()    
+                    # insert task into state DB
+                    stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                    stateCollection.insert({ "jobID": jobId,
+                          "state": "indexing",
+                           "lastFileName": "",
+                        "lastDoneRecord": "0",
+                           "db_ip": indexerIPAddr
+                           })
                     # call changeState to update on MasterDB (indexer_state)
                     changeState("update", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],"","","")   
                 except socket.error:
@@ -273,7 +281,8 @@ class TriggerThread (threading.Thread):
                     jobId = self.tasks[i]['jobID']
                     stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                     indexedDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
-                    order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+self.tasks[i]['db_ip']+"##"+self.tasks[i]['lastDoneRecord']
+                    localIndexedDB = self.tasks[i]['db_ip']+":"+str(LOCAL_DB_PORT)
+                    order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+localIndexedDB+"##"+self.tasks[i]['lastDoneRecord']
                     print "wait_writing"
                     print order
                     
@@ -282,7 +291,10 @@ class TriggerThread (threading.Thread):
                     try:  
                         server.connect ( ( indexerIPAddr, indexerPort ) )
                         server.send (order)
-                        server.close()    
+                        server.close()  
+                        # update task on state DB
+                        stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                        stateCollection.update({'jobID': jobId}, {"$set": {'state': "writing", 'lastDoneRecord':"0"}})  
                         # call changeState to add state on MasterDB
                         changeState("update", jobId, "writing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","","","") 
                     except socket.error:
@@ -317,6 +329,15 @@ class TriggerThread (threading.Thread):
                     server.connect ( ( indexerIPAddr, indexerPort ) )
                     server.send (order)
                     server.close()    
+                    # insert task into state DB
+                    stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                    stateCollection.insert({ 
+                               "jobID": jobId,
+                          "state": "indexing",
+                           "lastFileName": "",
+                        "lastDoneRecord": "0",
+                         "db_ip": indexerIPAddr
+                           })
                     # call changeState to add state on MasterDB
                     changeState("insert", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],cmd,"0","")
                     execTimeDict = {
@@ -446,7 +467,7 @@ STATE_DB_PORT = databaseCollection.find_one({'name':'State_DB'})['port']
 STATE_DB_CONN = MongoClient(STATE_DB, STATE_DB_PORT) 
 INDEXED_DB = databaseCollection.find_one({'name':'Indexed_DB'})['ip_addr']
 INDEXED_DB_PORT = databaseCollection.find_one({'name':'Indexed_DB'})['port']
-
+LOCAL_DB_PORT = databaseCollection.find_one({'name':'Indexed_DB'})['port']
 # Create new threads
 executeTime = getExecuteTime()
 checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)

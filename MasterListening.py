@@ -1,4 +1,4 @@
-import socket, datetime, time, threading, pymongo
+import socket, datetime, time, threading
 from pymongo import MongoClient
 import sys
 
@@ -7,14 +7,28 @@ HOST = ''   # Symbolic name meaning all available interfaces
 PORT = 8888 # Arbitrary non-privileged port
 KEEPALIVE_TIME_GAP = 2; #seconds
 TIMEOUT = 5
-MASTER_DB = "192.168.1.42"
-STATE_DB = "192.168.1.42"
-MASTER_DB_PORT = 27017
-STATE_DB_PORT = 27017
-MasterDBConn = MongoClient(MASTER_DB, MASTER_DB_PORT)
-StateDBConn = MongoClient(STATE_DB, STATE_DB_PORT) 
+#MASTER_DB = "192.168.1.42"
+#STATE_DB = "192.168.1.42"
+#MASTER_DB_PORT = 27017
+#STATE_DB_PORT = 27017
+#MasterDBConn = MongoClient(MASTER_DB, MASTER_DB_PORT)
+#StateDBConn = MongoClient(STATE_DB, STATE_DB_PORT) 
+def retrieveCollection(conn,dbName,colName):
+    # Get last record from state DB
+    db = conn[dbName]
+    collection = db[colName]
+    #conn.close()
+    return collection
+MASTER_DB = sys.argv[1]
+MASTER_DB_PORT = int(sys.argv[2])
+MASTER_DB_CONN = MongoClient(MASTER_DB, MASTER_DB_PORT)
+databaseCollection = retrieveCollection(MASTER_DB_CONN,"logsearch","Database_config")
+STATE_DB = databaseCollection.find_one({'name':'State_DB'})['ip_addr']
+STATE_DB_PORT = databaseCollection.find_one({'name':'State_DB'})['port']
+STATE_DB_CONN = MongoClient(STATE_DB, STATE_DB_PORT) 
+
 def changeStateMaster(jobID, state):
-    db = MasterDBConn.logsearch
+    db = MASTER_DB_CONN.logsearch
     indexerStateCollection = db.indexer_state
     if state == 'remove':
         indexerStateCollection.remove({'jobID': jobID})
@@ -23,7 +37,7 @@ def changeStateMaster(jobID, state):
 
     
 def changeStateState(jobID, state):
-    db = StateDBConn.logsearch
+    db = STATE_DB_CONN.logsearch
     indexerStateCollection = db.StateDB_state
     if state == 'remove':
         indexerStateCollection.remove({'jobID': jobID})
