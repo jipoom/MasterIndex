@@ -131,6 +131,8 @@ def checkIndexerState():
     #mongoClient = MongoClient(MASTER_DB, MASTER_DB_PORT)
     #db = mongoClient.logsearch
     #IndexerStateCollection = db.indexer_state
+    
+   
     IndexerStateCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','indexer_state')
     deadIndexer = IndexerStateCollection.find({'state':'dead'})
     if deadIndexer.count() > 0:
@@ -144,7 +146,16 @@ def checkIndexerState():
         # Create new threads (TriggerProcess error mode)
         triggerProcess('error')
         print 'queingIndexer or queingWriter exists'
-    #mongoClient.close();            
+    #mongoClient.close();    
+    
+    # remove unknown task from stateDB 
+    taskList = []
+    for indexer in IndexerStateCollection.find():
+        taskList.append(indexer['jobID'])
+    StateDBCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+    StateDBCollection.remove( { 'jobID': { '$nin': taskList } } )
+    
+           
     print "checkIndexerState"
     
 # Extract CMD    
