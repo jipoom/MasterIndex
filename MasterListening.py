@@ -58,15 +58,15 @@ class clientThread (threading.Thread):
         self.addr = addr
     def run(self):
         self.conn.send('Welcome to the server. Type something and hit enter\n') #send only takes string
-        
+        jobID = ""
         #infinite loop so that function do not terminate and thread do not end.
         while True:
-         
             # Receiving from client
             # Listening for Keep Alive Status
-            try:
+            try:        
                 data = self.conn.recv(1024)
                 keepAlive = extractCmd(data);
+                jobID =  keepAlive[0]
                 if keepAlive[1] =="indexing":
                     print "got keep-alive:indexing from "+ self.addr[0]+":"+str(self.addr[1])
                 elif keepAlive[1] =="writing":
@@ -89,12 +89,12 @@ class clientThread (threading.Thread):
                 #conn.sendall(reply)
             except socket.timeout:
                     # update workingProcessDB setting state as dead 
-                    changeStateMaster(keepAlive[0],'dead')
+                    changeStateMaster(jobID,'dead')
                     print "timeout"
                     break
             except socket.error:
                     # update workingProcessDB setting state as dead 
-                    changeStateMaster(keepAlive[0],'dead')
+                    changeStateMaster(jobID,'dead')
                     print "close: "+self.addr[0]+":"+str(self.addr[1])
                     break;
             #Timeout occurred, do things

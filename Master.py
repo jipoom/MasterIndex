@@ -232,6 +232,7 @@ class TriggerThread (threading.Thread):
         print indexerList
         execTimeList = []
         order = ""
+        cmd = ""
         # tasks = getTask()
         # Iterate over ranked list and uniquePath and call sendTask(indexer,cmd)
         j=0;
@@ -260,13 +261,13 @@ class TriggerThread (threading.Thread):
                     server.send (order)
                     server.close()    
                     # insert task into state DB
-                    stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
-                    stateCollection.insert({ "jobID": jobId,
-                          "state": "indexing",
-                           "lastFileName": "",
-                        "lastDoneRecord": "0",
-                           "db_ip": indexerIPAddr
-                           })
+                    # stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                    # stateCollection.insert({ "jobID": jobId,
+                    #       "state": "indexing",
+                    #        "lastFileName": "",
+                    #    "lastDoneRecord": "0",
+                    #       "db_ip": indexerIPAddr
+                    #       })
                     # call changeState to update on MasterDB (indexer_state)
                     changeState("update", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],"","","")   
                 except socket.error:
@@ -296,8 +297,8 @@ class TriggerThread (threading.Thread):
                         server.send (order)
                         server.close()  
                         # update task on state DB
-                        stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
-                        stateCollection.update({'jobID': jobId}, {"$set": {'state': "writing", 'lastDoneRecord':"0"}})  
+                        #stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                        #stateCollection.update({'jobID': jobId}, {"$set": {'state': "writing", 'lastDoneRecord':"0"}})  
                         # call changeState to add state on MasterDB
                         changeState("update", jobId, "writing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","","","") 
                     except socket.error:
@@ -333,14 +334,14 @@ class TriggerThread (threading.Thread):
                     server.send (order)
                     server.close()    
                     # insert task into state DB
-                    stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
-                    stateCollection.insert({ 
-                               "jobID": jobId,
-                          "state": "indexing",
-                           "lastFileName": "",
-                        "lastDoneRecord": "0",
-                         "db_ip": indexerIPAddr
-                           })
+                    # stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                    # stateCollection.insert({ 
+                    #            "jobID": jobId,
+                    #       "state": "indexing",
+                    #        "lastFileName": "",
+                    #     "lastDoneRecord": "0",
+                    #      "db_ip": indexerIPAddr
+                    #       })
                     # call changeState to add state on MasterDB
                     changeState("insert", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],cmd,"0","")
                     execTimeDict = {
