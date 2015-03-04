@@ -272,13 +272,13 @@ class TriggerThread (threading.Thread):
                     server.send (order)
                     server.close()    
                     # insert task into state DB
-                    # stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
-                    # stateCollection.insert({ "jobID": jobId,
-                    #       "state": "indexing",
-                    #        "lastFileName": "",
-                    #    "lastDoneRecord": "0",
-                    #       "db_ip": indexerIPAddr
-                    #       })
+                    stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                    stateCollection.insert({ "jobID": jobId,
+                           "state": "indexing",
+                            "lastFileName": "",
+                        "lastDoneRecord": "0",
+                           "db_ip": indexerIPAddr
+                           })
                     # call changeState to update on MasterDB (indexer_state)
                     changeState("update", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],"","","")   
                 except socket.error:
@@ -308,8 +308,8 @@ class TriggerThread (threading.Thread):
                         server.send (order)
                         server.close()  
                         # update task on state DB
-                        #stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
-                        #stateCollection.update({'jobID': jobId}, {"$set": {'state': "writing", 'lastDoneRecord':"0"}})  
+                        stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                        stateCollection.update({'jobID': jobId}, {"$set": {'state': "writing", 'lastDoneRecord':"0"}})  
                         # call changeState to add state on MasterDB
                         changeState("update", jobId, "writing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","","","") 
                     except socket.error:
@@ -345,14 +345,14 @@ class TriggerThread (threading.Thread):
                     server.send (order)
                     server.close()    
                     # insert task into state DB
-                    # stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
-                    # stateCollection.insert({ 
-                    #            "jobID": jobId,
-                    #       "state": "indexing",
-                    #        "lastFileName": "",
-                    #     "lastDoneRecord": "0",
-                    #      "db_ip": indexerIPAddr
-                    #       })
+                    stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                    stateCollection.insert({ 
+                                "jobID": jobId,
+                           "state": "indexing",
+                            "lastFileName": "",
+                         "lastDoneRecord": "0",
+                          "db_ip": indexerIPAddr
+                           })
                     # call changeState to add state on MasterDB
                     changeState("insert", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],cmd,"0","")
                     execTimeDict = {
@@ -427,11 +427,12 @@ class ErrorRecoveryThread (threading.Thread):
                         order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
                     elif deadIndexer[i]['logType'] == 'multiLine':
                         order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+self.tasks[i]['logType']+"##"+deadIndexer[i]['logStartTag']+"##"+deadIndexer[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
+                  
                     # for non-indexed records
                     changeState("insert", jobId, "wait_indexing", "", "",order,oldIndexer['lastDoneRecord'],oldIndexer['lastFileName'])
                     # for aldeary indexed records
-                    
-                    changeState("update", oldIndexer['jobID'], "wait_writing", "",deadIdxDetail['ip_addr'],"","0","")
+                    if oldIndexer['lastDoneRecord'] != 0 and oldIndexer['lastFileName'] != "":
+                        changeState("update", oldIndexer['jobID'], "wait_writing", "",deadIdxDetail['ip_addr'],"","0","")
                 # if local DB of the dead indexer is also dead
                 except pymongo.errors.ConnectionFailure:
                     # start over from the beginning
