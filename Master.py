@@ -168,10 +168,10 @@ def rankProcess(indexerList):
         # SNMP to test CPU and memory
         # Get  % of CPU Idle
 
-        output = check_output(["snmpwalk ", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e","192.168.1.42",SS_CPU_IDLE])
+        output = check_output(["snmpwalk", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e",indexer['ip_addr'],SS_CPU_IDLE])
         ssCpuIdle = (int)(output.split(" ")[3])
         # Get Memory available size
-        output = check_output(["snmpwalk ", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e","192.168.1.42",MEM_AVAIL_REAL])
+        output = check_output(["snmpwalk", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e",indexer['ip_addr'],MEM_AVAIL_REAL])
         memAvailReal = (int)(output.split(" ")[3])
         indexerPerformance = {
                        'name': indexer['name'],
