@@ -410,7 +410,7 @@ class ErrorRecoveryThread (threading.Thread):
                 try:
                     checkLocalDB = MongoClient(oldIndexer['db_ip'], MASTER_DB_PORT)
                     checkLocalDB.close()
-                    # Creat new job ID for writing
+                    # Creat new job ID
                     jobId = generateJobID()
                     if deadIndexer[i]['logType'] == 'singleLine':
                         order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+oldIndexer['lastDoneRecord']
