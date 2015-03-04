@@ -21,7 +21,7 @@ def changeState(cmd, jobID, state, indexer, database, order, lastDoneRecord,last
                         'state':state,
                         'node':indexer,
                         'db_ip':database,
-                        'lastDoneRecord':lastDoneRecord,
+                        'lastDoneRecord':int(lastDoneRecord),
                         'lastFileName':"0",
                         'executionTime':int(time.time()) 
                         }
@@ -51,7 +51,7 @@ def changeState(cmd, jobID, state, indexer, database, order, lastDoneRecord,last
                             'mmin':int(order[14]),
                             'interval':int(order[15]),
                             'lastFileName': order[16],
-                            'lastDoneRecord':order[17],
+                            'lastDoneRecord':int(order[17]),
                             'executionTime':int(time.time())    
                             }
             elif order[5] == 'singleLine':
@@ -75,7 +75,7 @@ def changeState(cmd, jobID, state, indexer, database, order, lastDoneRecord,last
                             'mmin':int(order[12]),
                             'interval':int(order[13]),
                             'lastFileName':order[14],
-                            'lastDoneRecord':order[15],
+                            'lastDoneRecord':int(order[15]),
                             'executionTime':int(time.time())     
                             }
         indexerStateCollection.insert(document)
@@ -87,7 +87,7 @@ def changeState(cmd, jobID, state, indexer, database, order, lastDoneRecord,last
             indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer}})
         #wait_writing wait_indexing
         else:
-            indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer, 'lastDoneRecord' : lastDoneRecord, 'lastFileName':lastFileName}})
+            indexerStateCollection.update({'jobID': jobID}, {"$set": {'state': state, 'indexer': indexer, 'lastDoneRecord' : int(lastDoneRecord), 'lastFileName':lastFileName}})
         
     print "changeState"
 
@@ -246,9 +246,9 @@ class TriggerThread (threading.Thread):
             if self.tasks[i]['state'] == 'wait_indexing':
                 # build cmd for indexer to run still missing the starting point (line number)
                 if self.tasks[i]['logType'] == 'singleLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+str(self.tasks[i]['lastDoneRecord'])
                 elif self.tasks[i]['logType'] == 'multiLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+str(self.tasks[i]['lastDoneRecord'])
                 jobId = self.tasks[i]['jobID']
                 stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                 order = "indexing##"+jobId+"##"+stateDB+"##"+cmd
@@ -286,7 +286,7 @@ class TriggerThread (threading.Thread):
                     stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                     indexedDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
                     localIndexedDB = self.tasks[i]['db_ip']+":"+str(rankedIndexer[(i+j)%len(rankedIndexer)]['db_port'])
-                    order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+localIndexedDB+"##"+self.tasks[i]['lastDoneRecord']
+                    order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+localIndexedDB+"##"+str(self.tasks[i]['lastDoneRecord'])
                     print "wait_writing"
                     print order
                     
@@ -315,9 +315,9 @@ class TriggerThread (threading.Thread):
             elif self.tasks[i]['state'] == 'routine':
                 # build cmd for indexer to run still missing the starting point (line number)
                 if self.tasks[i]['logType'] == 'singleLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+str(self.tasks[i]['lastDoneRecord'])
                 elif self.tasks[i]['logType'] == 'multiLine':
-                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+self.tasks[i]['lastDoneRecord']
+                    cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+str(self.tasks[i]['lastDoneRecord'])
                     
                 # generate JobID
                 jobId = generateJobID()
@@ -413,9 +413,9 @@ class ErrorRecoveryThread (threading.Thread):
                     # Creat new job ID
                     jobId = generateJobID()
                     if deadIndexer[i]['logType'] == 'singleLine':
-                        order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+oldIndexer['lastDoneRecord']
+                        order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
                     elif deadIndexer[i]['logType'] == 'multiLine':
-                        order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+self.tasks[i]['logType']+"##"+deadIndexer[i]['logStartTag']+"##"+deadIndexer[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+oldIndexer['lastDoneRecord']
+                        order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+self.tasks[i]['logType']+"##"+deadIndexer[i]['logStartTag']+"##"+deadIndexer[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
                     # for non-indexed records
                     changeState("insert", jobId, "wait_indexing", "", "",order,oldIndexer['lastDoneRecord'],oldIndexer['lastFileName'])
                     # for aldeary indexed records
