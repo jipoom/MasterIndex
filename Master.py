@@ -148,7 +148,7 @@ def checkIndexerState():
         print 'queingIndexer or queingWriter exists'
     #mongoClient.close();    
     
-    # remove unknown task from stateDB 
+    # remove unknown task from StateDB
     taskList = []
     for indexer in IndexerStateCollection.find():
         taskList.append(indexer['jobID'])
