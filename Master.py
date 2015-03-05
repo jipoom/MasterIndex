@@ -204,7 +204,7 @@ def rankProcess(indexerList):
     
 def checkDBPerformace(host,port):
     # check DB workload
-    output = check_output(["mongostat.exe", "-host",host,"-port",str(port),"-n", "1"])
+    output = check_output(["mongostat", "-host",host,"-port",str(port),"-n", "1"])
     insert = output.split('\n')
     # get first column of the result (insert rate)
     insertRate = insert[2][:6]
