@@ -237,7 +237,7 @@ class TriggerThread (threading.Thread):
         threading.Thread.__init__(self)
         self.tasks = tasks
     def run(self):
-        if(self.tasks.count()):
+        if(self.tasks.count() > 0):
             # Get all indexer
             indexerList = getIndexer()
             # rank all processes
@@ -281,7 +281,7 @@ class TriggerThread (threading.Thread):
                         stateCollection.insert({ "jobID": jobId,
                                "state": "indexing",
                                 "lastFileName": "",
-                            "lastDoneRecord": "0",
+                            "lastDoneRecord": "-1",
                                "db_ip": indexerIPAddr
                                })
                         # call changeState to update on MasterDB (indexer_state)
@@ -314,7 +314,7 @@ class TriggerThread (threading.Thread):
                             server.close()  
                             # update task on state DB
                             stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
-                            stateCollection.update({'jobID': jobId}, {"$set": {'state': "writing", 'lastDoneRecord':"0"}})  
+                            stateCollection.update({'jobID': jobId}, {"$set": {'state': "writing", 'lastDoneRecord':"-1"}})  
                             # call changeState to add state on MasterDB
                             changeState("update", jobId, "writing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], "","","","") 
                         except socket.error:
@@ -355,11 +355,11 @@ class TriggerThread (threading.Thread):
                                     "jobID": jobId,
                                "state": "indexing",
                                 "lastFileName": "",
-                             "lastDoneRecord": "0",
+                             "lastDoneRecord": "-1",
                               "db_ip": indexerIPAddr
                                })
                         # call changeState to add state on MasterDB
-                        changeState("insert", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],cmd,"0","")
+                        changeState("insert", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],cmd,"-1","")
                         execTimeDict = {
                                     '_id': self.tasks[i]['_id'],
                                     'lastExecutionTime':int(time.time())
@@ -437,11 +437,11 @@ class ErrorRecoveryThread (threading.Thread):
                     changeState("insert", jobId, "wait_indexing", "", "",order,oldIndexer['lastDoneRecord'],oldIndexer['lastFileName'])
                     # for aldeary indexed records
                     if oldIndexer['lastDoneRecord'] != 0 and oldIndexer['lastFileName'] != "":
-                        changeState("update", oldIndexer['jobID'], "wait_writing", "",deadIdxDetail['ip_addr'],"","0","")
+                        changeState("update", oldIndexer['jobID'], "wait_writing", "",deadIdxDetail['ip_addr'],"","-1","")
                 # if local DB of the dead indexer is also dead
                 except pymongo.errors.ConnectionFailure:
                     # start over from the beginning
-                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","0","")               
+                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","-1","")               
                     
             # if stateDB shows "writing"
             if oldIndexer['state'] == "writing":
@@ -454,7 +454,7 @@ class ErrorRecoveryThread (threading.Thread):
                     # Call addTask(wait_writing, indexer's local_DB) to add Task to MasterDB 
                 except pymongo.errors.ConnectionFailure:
                     # start over from the beginning
-                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","0","")           
+                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","-1","")           
 
 class CheckStateThread (threading.Thread):
     def __init__(self, executeTime, nextkeepAliveTime):
