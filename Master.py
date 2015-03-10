@@ -178,22 +178,23 @@ def rankProcess(indexerList):
     for indexer in indexerList:
         # SNMP to test CPU and memory
         # Get  % of CPU Idle
-
-        output = check_output(["snmpwalk", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e",indexer['ip_addr'],SS_CPU_IDLE])
-        ssCpuIdle = (int)(output.split(" ")[3])
-        # Get Memory available size
-        output = check_output(["snmpwalk", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e",indexer['ip_addr'],MEM_AVAIL_REAL])
-        memAvailReal = (int)(output.split(" ")[3])
-        indexerPerformance = {
-                       'name': indexer['name'],
-                       'ip_addr':indexer['ip_addr'],
-                       'port':indexer['port'],
-                       'db_port':indexer['db_port'],
-                       'memory': memAvailReal,
-                       'cpu': ssCpuIdle
-                       }
-        performance.append(indexerPerformance)
-
+        try:
+            output = check_output(["snmpwalk", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e",indexer['ip_addr'],SS_CPU_IDLE])
+            ssCpuIdle = (int)(output.split(" ")[3])
+            # Get Memory available size
+            output = check_output(["snmpwalk", "-v", "2c", "-c", COMMUNITY_STRING,"-O" ,"e",indexer['ip_addr'],MEM_AVAIL_REAL])
+            memAvailReal = (int)(output.split(" ")[3])
+            indexerPerformance = {
+                           'name': indexer['name'],
+                           'ip_addr':indexer['ip_addr'],
+                           'port':indexer['port'],
+                           'db_port':indexer['db_port'],
+                           'memory': memAvailReal,
+                           'cpu': ssCpuIdle
+                           }
+            performance.append(indexerPerformance)
+        except:
+            print indexer['ip_addr']+" is not available"
     # sort indexers according to performance result
     indexerList = sorted(performance,key=itemgetter('cpu','memory'))
     print indexerList
@@ -236,7 +237,7 @@ class TriggerThread (threading.Thread):
         threading.Thread.__init__(self)
         self.tasks = tasks
     def run(self):
-        if(self.tasks.count() > 0):
+        if(self.tasks.count()):
             # Get all indexer
             indexerList = getIndexer()
             # rank all processes
@@ -249,9 +250,12 @@ class TriggerThread (threading.Thread):
             # Iterate over ranked list and uniquePath and call sendTask(indexer,cmd)
             j=0;
             i=0;
-            while (i < self.tasks.count()):
+            while (i < self.tasks.count() and len(rankedIndexer) > 0):
             #for i in range(0, self.tasks.count()):  
                 # wait_indexing found
+                # if making 3 attempts
+                if j == len(rankedIndexer)*3:
+                    break
                 indexerIPAddr = rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr']
                 indexerPort = rankedIndexer[(i+j)%len(rankedIndexer)]['port']
                 print rankedIndexer[(i+j)%len(rankedIndexer)]
