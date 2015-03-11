@@ -73,7 +73,9 @@ class clientThread (threading.Thread):
                     print "got keep-alive:writing from "+ self.addr[0]+":"+str(self.addr[1])
                 elif keepAlive[1] == "indexing-done":
                     # update indexer's state to wait_writing on MasterDB 
-                    changeStateMaster(keepAlive[0],'wait_writing')
+                    # changeStateMaster(keepAlive[0],'wait_writing')
+                    changeStateState(keepAlive[0],'remove')
+                    changeStateMaster(keepAlive[0],'remove')
                     print "Indexing Done by: "+self.addr[0]+":"+str(self.addr[1])
                     break
                 elif keepAlive[1] == "writing-done":

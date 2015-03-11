@@ -267,7 +267,8 @@ class TriggerThread (threading.Thread):
                         cmd = self.tasks[i]['service']+"##"+self.tasks[i]['system']+"##"+self.tasks[i]['node']+"##"+self.tasks[i]['process']+"##"+self.tasks[i]['path']+"##"+self.tasks[i]['logType']+"##"+self.tasks[i]['logStartTag']+"##"+self.tasks[i]['logEndTag']+"##"+self.tasks[i]['msisdnRegex']+"##"+self.tasks[i]['dateHolder']+"##"+self.tasks[i]['dateRegex']+"##"+self.tasks[i]['dateFormat']+"##"+self.tasks[i]['timeRegex']+"##"+self.tasks[i]['timeFormat']+'##'+str(self.tasks[i]['mmin'])+'##'+str(self.tasks[i]['interval'])+'##'+self.tasks[i]['lastFileName']+'##'+str(self.tasks[i]['lastDoneRecord'])
                     jobId = self.tasks[i]['jobID']
                     stateDB = STATE_DB+":"+str(STATE_DB_PORT)
-                    order = "indexing##"+jobId+"##"+stateDB+"##"+cmd
+                    actualDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
+                    order = "indexing##"+jobId+"##"+stateDB+"##"+cmd+"##"+actualDB
                     print "wait_indexing"
                     
                     server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
@@ -339,7 +340,8 @@ class TriggerThread (threading.Thread):
                     jobId = generateJobID()
                     # assign jobID to each node
                     stateDB = STATE_DB+":"+str(STATE_DB_PORT)
-                    order = "indexing##"+jobId+"##"+stateDB+"##"+cmd
+                    actualDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
+                    order = "indexing##"+jobId+"##"+stateDB+"##"+cmd+"##"+actualDB
                     # print "indexing"
                     # print order
                     # print rankedIndexer[i%len(rankedIndexer)]['name']+"-"+jobId 
