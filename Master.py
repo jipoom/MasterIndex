@@ -425,25 +425,16 @@ class ErrorRecoveryThread (threading.Thread):
             # if stateDB shows "indexing"
             if oldIndexer['state'] == "indexing":           
                 # if local DB of the dead indexer is alive
-                try:
-                    checkLocalDB = MongoClient(oldIndexer['db_ip'], MASTER_DB_PORT)
-                    checkLocalDB.close()
-                    # Creat new job ID
-                    jobId = generateJobID()
-                    if deadIndexer[i]['logType'] == 'singleLine':
-                        order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
-                    elif deadIndexer[i]['logType'] == 'multiLine':
-                        order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['logStartTag']+"##"+deadIndexer[i]['logEndTag']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
+
+                # Creat new job ID
+                jobId = generateJobID()
+                if deadIndexer[i]['logType'] == 'singleLine':
+                    order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
+                elif deadIndexer[i]['logType'] == 'multiLine':
+                    order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['logStartTag']+"##"+deadIndexer[i]['logEndTag']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
                   
-                    # for non-indexed records
-                    changeState("insert", jobId, "wait_indexing", "", "",order,oldIndexer['lastDoneRecord'],oldIndexer['lastFileName'])
-                    # for aldeary indexed records
-                    if oldIndexer['lastDoneRecord'] != 0 and oldIndexer['lastFileName'] != "":
-                        changeState("update", oldIndexer['jobID'], "wait_writing", "",deadIdxDetail['ip_addr'],"","-1","")
-                # if local DB of the dead indexer is also dead
-                except pymongo.errors.ConnectionFailure:
-                    # start over from the beginning
-                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","-1","")               
+                # for non-indexed records
+                changeState("update", oldIndexer['jobID'], "wait_indexing", "", "",order,oldIndexer['lastDoneRecord'],oldIndexer['lastFileName'])        
                     
             # if stateDB shows "writing"
             if oldIndexer['state'] == "writing":
