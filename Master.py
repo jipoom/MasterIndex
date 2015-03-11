@@ -278,13 +278,13 @@ class TriggerThread (threading.Thread):
                         server.send (order)
                         server.close()    
                         # insert task into state DB
-                        stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
-                        stateCollection.insert({ "jobID": jobId,
-                               "state": "indexing",
-                                "lastFileName": "",
-                            "lastDoneRecord": "-1",
-                               "db_ip": indexerIPAddr
-                               })
+                        # stateCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
+                        # stateCollection.insert({ "jobID": jobId,
+                        #        "state": "indexing",
+                        #         "lastFileName": "",
+                        #     "lastDoneRecord": "-1",
+                        #        "db_ip": indexerIPAddr
+                        #        })
                         # call changeState to update on MasterDB (indexer_state)
                         changeState("update", jobId, "indexing", rankedIndexer[(i+j)%len(rankedIndexer)]['name'], rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr'],"","","")   
                     except socket.error:
