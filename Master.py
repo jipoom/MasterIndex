@@ -412,42 +412,44 @@ class ErrorRecoveryThread (threading.Thread):
         print "ErrorRecoveryThread"
         # get DeadIndexer
         indexerStateCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','indexer_state')
-        deadIndexer = indexerStateCollection.find({'state':'dead'})
+        deadIndexerCount = indexerStateCollection.find({'state':'dead'})
         stateDBCollection = retrieveCollection(STATE_DB_CONN,'logsearch','StateDB_state')
         indexerDetailCollection = retrieveCollection(MASTER_DB_CONN,'logsearch','MasterDB_indexer')
 
-        for i in range(0, deadIndexer.count()):
+        for i in range(0, deadIndexerCount.count()):
             # get before-dead state
-            oldIndexer = stateDBCollection.find_one({'jobID':deadIndexer[i]['jobID']})   
+            deadIndexer = indexerStateCollection.find_one({'state':'dead'})
+            oldIndexer = stateDBCollection.find_one({'jobID':deadIndexer['jobID']})   
             ### check StateDB for the dead indexer then set ignore bit = 1 for this record
             # Get Dead Idx detail
-            deadIdxDetail = indexerDetailCollection.find_one({'name':deadIndexer[i]['indexer']})  
+            deadIdxDetail = indexerDetailCollection.find_one({'name':deadIndexer['indexer']})  
             # if stateDB shows "indexing"
             if oldIndexer['state'] == "indexing":           
                 # if local DB of the dead indexer is alive
 
                 # Creat new job ID
-                jobId = generateJobID()
-                if deadIndexer[i]['logType'] == 'singleLine':
-                    order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
-                elif deadIndexer[i]['logType'] == 'multiLine':
-                    order = deadIndexer[i]['service']+"##"+deadIndexer[i]['system']+"##"+deadIndexer[i]['node']+"##"+deadIndexer[i]['process']+"##"+deadIndexer[i]['path']+"##"+deadIndexer[i]['logType']+"##"+deadIndexer[i]['logStartTag']+"##"+deadIndexer[i]['logEndTag']+"##"+deadIndexer[i]['msisdnRegex']+"##"+deadIndexer[i]['dateHolder']+"##"+deadIndexer[i]['dateRegex']+"##"+deadIndexer[i]['dateFormat']+"##"+deadIndexer[i]['timeRegex']+"##"+deadIndexer[i]['timeFormat']+'##'+str(deadIndexer[i]['mmin'])+'##'+str(deadIndexer[i]['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
+                #jobId = generateJobID()
+                if deadIndexer['logType'] == 'singleLine':
+                    order = deadIndexer[i]['service']+"##"+deadIndexer['system']+"##"+deadIndexer['node']+"##"+deadIndexer['process']+"##"+deadIndexer['path']+"##"+deadIndexer['logType']+"##"+deadIndexer['msisdnRegex']+"##"+deadIndexer['dateHolder']+"##"+deadIndexer['dateRegex']+"##"+deadIndexer['dateFormat']+"##"+deadIndexer['timeRegex']+"##"+deadIndexer['timeFormat']+'##'+str(deadIndexer['mmin'])+'##'+str(deadIndexer['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
+                elif deadIndexer['logType'] == 'multiLine':
+                    order = deadIndexer['service']+"##"+deadIndexer['system']+"##"+deadIndexer['node']+"##"+deadIndexer['process']+"##"+deadIndexer['path']+"##"+deadIndexer['logType']+"##"+deadIndexer['logStartTag']+"##"+deadIndexer['logEndTag']+"##"+deadIndexer['msisdnRegex']+"##"+deadIndexer['dateHolder']+"##"+deadIndexer['dateRegex']+"##"+deadIndexer['dateFormat']+"##"+deadIndexer['timeRegex']+"##"+deadIndexer['timeFormat']+'##'+str(deadIndexer['mmin'])+'##'+str(deadIndexer['interval'])+'##'+oldIndexer['lastFileName']+'##'+str(oldIndexer['lastDoneRecord'])
                   
                 # for non-indexed records
                 changeState("update", oldIndexer['jobID'], "wait_indexing", "", "",order,oldIndexer['lastDoneRecord'],oldIndexer['lastFileName'])        
                     
             # if stateDB shows "writing"
-            if oldIndexer['state'] == "writing":
+            # if oldIndexer['state'] == "writing":
                 # if local DB of the dead indexer is alive
-                try:
-                    testLocalDB = MongoClient(oldIndexer['db_ip'], MASTER_DB_PORT)
-                    testLocalDB.close()
-                    changeState("update", oldIndexer['jobID'], "wait_writing", "", "",deadIdxDetail['ip_addr'],oldIndexer['lastDoneRecord'],"")
+            #    try:
+            #        testLocalDB = MongoClient(oldIndexer['db_ip'], MASTER_DB_PORT)
+            #        testLocalDB.close()
+            #        changeState("update", oldIndexer['jobID'], "wait_writing", "", "",deadIdxDetail['ip_addr'],oldIndexer['lastDoneRecord'],"")
                     # get the last written record of the dead indexer from stateDB
                     # Call addTask(wait_writing, indexer's local_DB) to add Task to MasterDB 
-                except pymongo.errors.ConnectionFailure:
+            #    except pymongo.errors.ConnectionFailure:
                     # start over from the beginning
-                    changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","-1","")           
+            #        changeState("update", oldIndexer['jobID'], "wait_indexing", "", "","","-1","")   
+       
 
 class CheckStateThread (threading.Thread):
     def __init__(self, executeTime, nextkeepAliveTime):
