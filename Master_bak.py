@@ -5,9 +5,6 @@ from operator import itemgetter
 # lists containing alive process
 # eg. 192.168.1.1:12345
 
-def sleeper(seconds):
-    time.sleep(seconds)
-
 def getExecuteTime():
     now=datetime.datetime.now()
     return time.mktime(now.timetuple())  
@@ -97,7 +94,7 @@ def changeState(cmd, jobID, state, indexer, database, order, lastDoneRecord,last
 def generateJobID(size=10, chars=string.ascii_uppercase + string.digits+string.ascii_lowercase):
     # generates jobID for tasks
     # return jobID
-    print "generatejobID"
+    print "jobID"
     return ''.join(random.choice(chars) for _ in range(size))
 
 def isOldJob(jobID):
@@ -172,7 +169,7 @@ def triggerProcess(mode):
     triggerProcess = TriggerThread(tasks)
     triggerProcess.start()
     #triggerProcess.join()
-    print "TriggerProcess: "+str(getExecuteTime())    
+    print "TriggerProcess: "+str(NEXT_EXECUTION_TIME)    
 # rankProcess is to rank all processes by performance
 def rankProcess(indexerList): 
     print "rankProcess"
@@ -200,7 +197,7 @@ def rankProcess(indexerList):
             print indexer['ip_addr']+" is not available"
     # sort indexers according to performance result
     indexerList = sorted(performance,key=itemgetter('cpu','memory'))
-    # print indexerList
+    print indexerList
     # print sorted(performance,key=lambda k: (k['cpu'], k['memory']))
     # return  
     return indexerList
@@ -241,14 +238,11 @@ class TriggerThread (threading.Thread):
         self.tasks = tasks
     def run(self):
         if(self.tasks.count() > 0):
-            print "###########################################################################"
-            print "Tasks exist at "+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')
-            
             # Get all indexer
             indexerList = getIndexer()
             # rank all processes
             rankedIndexer = rankProcess(indexerList)
-            # print indexerList
+            print indexerList
             execTimeList = []
             order = ""
             cmd = ""
@@ -264,7 +258,7 @@ class TriggerThread (threading.Thread):
                     break
                 indexerIPAddr = rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr']
                 indexerPort = rankedIndexer[(i+j)%len(rankedIndexer)]['port']
-                print "working indexer is : "+rankedIndexer[(i+j)%len(rankedIndexer)]['name']
+                print rankedIndexer[(i+j)%len(rankedIndexer)]
                 if self.tasks[i]['state'] == 'wait_indexing':
                     # build cmd for indexer to run still missing the starting point (line number)
                     if self.tasks[i]['logType'] == 'singleLine':
@@ -384,8 +378,7 @@ class TriggerThread (threading.Thread):
                 db = MASTER_DB_CONN.logsearch
                 serviceConfigCollection = db.service_config
                 serviceConfigCollection.update({'_id': execTimeList[i]['_id']}, {"$set": {'lastExecutionTime': execTimeList[i]['lastExecutionTime']}})
-            print cmd
-            print "###########################################################################"
+            
 class WritingThread (threading.Thread):
     def __init__(self,host,port):
         self.process = None
@@ -459,18 +452,16 @@ class ErrorRecoveryThread (threading.Thread):
        
 
 class CheckStateThread (threading.Thread):
-    def __init__(self):
+    def __init__(self, executeTime, nextkeepAliveTime):
         threading.Thread.__init__(self)
-        #self.executeTime = executeTime
-        #self.nextkeepAliveTime = nextkeepAliveTime
+        self.executeTime = executeTime
+        self.nextkeepAliveTime = nextkeepAliveTime
     def run(self):
         while True:
-            #self.keepAliveTime = getExecuteTime()
-            #if self.keepAliveTime >= self.nextkeepAliveTime:
-            #    self.nextkeepAliveTime = self.keepAliveTime+KEEPALIVE_TIME_GAP
-            sleeper(KEEPALIVE_TIME_GAP)
-            checkIndexerState()
-
+            self.keepAliveTime = getExecuteTime()
+            if self.keepAliveTime >= self.nextkeepAliveTime:
+                self.nextkeepAliveTime = self.keepAliveTime+KEEPALIVE_TIME_GAP
+                checkIndexerState()
 
 
 # checkDBPerformace(MAIN_DB,MAIN_DB_PORT)
@@ -496,17 +487,15 @@ INDEXED_DB_PORT = databaseCollection.find_one({'name':'Indexed_DB'})['port']
 #LOCAL_DB_PORT = databaseCollection.find_one({'name':'Indexed_DB'})['db_port']
 # Create new threads
 executeTime = getExecuteTime()
-#checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
-checkStateThread = CheckStateThread()
+checkStateThread = CheckStateThread(executeTime,executeTime+KEEPALIVE_TIME_GAP)
 # Start new Threads
 checkStateThread.start()
 while True:
-    #uniquePath = [] # read from configuration file node:path
-    #executeTime = getExecuteTime()
-    #if executeTime >= NEXT_EXECUTION_TIME:
-    #    NEXT_EXECUTION_TIME = executeTime+EXECUTE_TIME_GAP
-    sleeper(EXECUTE_TIME_GAP)
-    triggerProcess("routine")
+    uniquePath = [] # read from configuration file node:path
+    executeTime = getExecuteTime()
+    if executeTime >= NEXT_EXECUTION_TIME:
+        NEXT_EXECUTION_TIME = executeTime+EXECUTE_TIME_GAP
+        triggerProcess("routine")
     
     
     
