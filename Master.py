@@ -264,7 +264,6 @@ class TriggerThread (threading.Thread):
                     break
                 indexerIPAddr = rankedIndexer[(i+j)%len(rankedIndexer)]['ip_addr']
                 indexerPort = rankedIndexer[(i+j)%len(rankedIndexer)]['port']
-                print "working indexer is : "+rankedIndexer[(i+j)%len(rankedIndexer)]['name']
                 if self.tasks[i]['state'] == 'wait_indexing':
                     # build cmd for indexer to run still missing the starting point (line number)
                     if self.tasks[i]['logType'] == 'singleLine':
@@ -311,7 +310,7 @@ class TriggerThread (threading.Thread):
                         localIndexedDB = self.tasks[i]['db_ip']+":"+str(rankedIndexer[(i+j)%len(rankedIndexer)]['db_port'])
                         order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+localIndexedDB+"##"+str(self.tasks[i]['lastDoneRecord'])
                         print "wait_writing"
-                        print order
+                        #print order
                         
                         server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
                         #infinite loop so that function do not terminate and thread do not end.
@@ -378,13 +377,14 @@ class TriggerThread (threading.Thread):
                         i-=1
                         print "error: indexer-"+rankedIndexer[(i+j)%len(rankedIndexer)]['name']+" is not ready"
                         server.close()
-                i+=1     
+                i+=1  
+                print "working indexer is : "+rankedIndexer[(i+j)%len(rankedIndexer)]['name']+" for jobID: "+jobId   
             # updateExecutionTime
             for i in range(0, len(execTimeList)): 
                 db = MASTER_DB_CONN.logsearch
                 serviceConfigCollection = db.service_config
                 serviceConfigCollection.update({'_id': execTimeList[i]['_id']}, {"$set": {'lastExecutionTime': execTimeList[i]['lastExecutionTime']}})
-            print cmd
+            #print cmd
             print "###########################################################################"
 class WritingThread (threading.Thread):
     def __init__(self,host,port):
