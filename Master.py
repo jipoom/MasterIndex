@@ -142,13 +142,13 @@ def checkIndexerState():
         # Create new thread (ErrorRecoveryThread)
         errRecv = ErrorRecoveryThread()
         errRecv.start()
-        print 'dead exists'
+        print "["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] dead indexer(s) found"
     queingIndexer = IndexerStateCollection.find({'state':'wait_indexing'})
     queingWriter = IndexerStateCollection.find({'state':'wait_writing'})
     if queingIndexer.count() + queingWriter.count() > 0:
         # Create new threads (TriggerProcess error mode)
         triggerProcess('error')
-        print 'queingIndexer or queingWriter exists'
+        print 'queingIndexer exists'
     #mongoClient.close();    
     
     # remove unknown task from StateDB
@@ -172,7 +172,7 @@ def triggerProcess(mode):
     triggerProcess = TriggerThread(tasks)
     triggerProcess.start()
     #triggerProcess.join()
-    print "TriggerProcess: "+str(getExecuteTime())    
+    print "["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] TriggerProcess: "+str(getExecuteTime())    
 # rankProcess is to rank all processes by performance
 def rankProcess(indexerList): 
     print "rankProcess"
@@ -242,7 +242,7 @@ class TriggerThread (threading.Thread):
     def run(self):
         if(self.tasks.count() > 0):
             print "###########################################################################"
-            print "Tasks exist at "+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')
+            print "["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Tasks exist"
             
             # Get all indexer
             indexerList = getIndexer()
@@ -274,7 +274,7 @@ class TriggerThread (threading.Thread):
                     stateDB = STATE_DB+":"+str(STATE_DB_PORT)
                     actualDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
                     order = "indexing##"+jobId+"##"+stateDB+"##"+cmd+"##"+actualDB
-                    print "wait_indexing"
+                    print "["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] continuing indexing task: "+jobId
                     
                     server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
                     #infinite loop so that function do not terminate and thread do not end.
@@ -300,7 +300,7 @@ class TriggerThread (threading.Thread):
                     
                     # call changeState to update state on MasterDB
                     # changeState("update", jobId, "indexing", rankedIndexer[i%len(rankedIndexer)]['name'], "","")
-                # wait_writing found
+#(Unused)                # wait_writing found (Unused)
                 elif self.tasks[i]['state'] == 'wait_writing':
                     # if indexingDB is working less than 5000 records/sec
                     if(checkDBPerformace(INDEXED_DB, INDEXED_DB_PORT) < 4500):
@@ -309,7 +309,7 @@ class TriggerThread (threading.Thread):
                         indexedDB = INDEXED_DB+":"+str(INDEXED_DB_PORT)
                         localIndexedDB = self.tasks[i]['db_ip']+":"+str(rankedIndexer[(i+j)%len(rankedIndexer)]['db_port'])
                         order = "writing##"+jobId+"##"+stateDB+"##"+indexedDB+"##"+localIndexedDB+"##"+str(self.tasks[i]['lastDoneRecord'])
-                        print "wait_writing"
+                        print "writing task"
                         #print order
                         
                         server = socket.socket ( socket.AF_INET, socket.SOCK_STREAM )
@@ -378,7 +378,7 @@ class TriggerThread (threading.Thread):
                         print "error: indexer-"+rankedIndexer[(i+j)%len(rankedIndexer)]['name']+" is not ready"
                         server.close()
                 i+=1  
-                print "working indexer is : "+rankedIndexer[(i+j)%len(rankedIndexer)]['name']+" for jobID: "+jobId   
+                print "["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] working indexer is : "+rankedIndexer[(i+j)%len(rankedIndexer)]['name']+" for jobID: "+jobId   
             # updateExecutionTime
             for i in range(0, len(execTimeList)): 
                 db = MASTER_DB_CONN.logsearch
@@ -386,6 +386,7 @@ class TriggerThread (threading.Thread):
                 serviceConfigCollection.update({'_id': execTimeList[i]['_id']}, {"$set": {'lastExecutionTime': execTimeList[i]['lastExecutionTime']}})
             #print cmd
             print "###########################################################################"
+#(Unused)   
 class WritingThread (threading.Thread):
     def __init__(self,host,port):
         self.process = None
