@@ -183,7 +183,7 @@ def checkIndexerState():
         errRecv.start()
         print "["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] dead indexer(s) found"
         masterLogFile = openLogFile()
-        masterLogFile.write("["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] dead indexer(s) found") 
+        masterLogFile.write("["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] dead indexer(s) found"+"\n") 
         masterLogFile.close()        
     queingIndexer = IndexerStateCollection.find({'state':'wait_indexing'})
     if queingIndexer.count() > 0:
@@ -211,7 +211,7 @@ def checkListener():
         server.close()
         print "["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Error: MasterListener is dead"
         masterLogFile = openLogFile()
-        masterLogFile.write("["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Error: MasterListener is dead") 
+        masterLogFile.write("["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Error: MasterListener is dead"+"\n") 
         masterLogFile.close()
         setIndexerToDead()
         check_output(["pkill", "-9", "-f", "Master"])
@@ -308,7 +308,7 @@ class TriggerThread (threading.Thread):
             print "###########################################################################"
             print "["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Tasks exist"
             masterLogFile = openLogFile()
-            masterLogFile.write("["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Tasks exist")
+            masterLogFile.write("["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Tasks exist"+"\n")
             
             # Get all indexer
             indexerList = getIndexer()

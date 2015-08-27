@@ -83,7 +83,7 @@ def checkMaster():
     output = check_output("ps x |grep -v grep |grep -c Master",shell=True)
     if int(output)< 2:
         masterLogFile = openLogFile()
-        masterLogFile.write("["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Error: Master is dead") 
+        masterLogFile.write("["+datetime.datetime.fromtimestamp(int(getExecuteTime())).strftime('%Y-%m-%d %H:%M:%S')+"] Error: Master is dead"+"\n") 
         masterLogFile.close()
         setIndexerToDead()        
         check_output(["pkill", "-9", "-f", "Master"])
